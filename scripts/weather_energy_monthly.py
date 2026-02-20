@@ -3,8 +3,7 @@
 
 #-----------Run commands----------------#
 # python -u scripts/weather_energy_monthly.py --year 2024 --month 01 --n-jobs-pv 2
-# for m in $(seq -w 1 6); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2; done
-# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2 --write-farm-timeseries; done
+# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2022 --month "$m" --n-jobs-pv 2; done
 
 # nohup bash -lc 'for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2; done' > run_2024.log 2>&1 &
 # disown
@@ -423,13 +422,13 @@ class PVCalculator:
                 flush=True,
             )
         
+        mw_asbuilt_agg = mw_asbuilt * capacity_scale
+        mw_2025_agg = mw_2025 * capacity_scale
+
         if use_fallback:
             factor = float(fallback_factor)
         else:
-            factor = self._factor_from_asbuilt(mw_asbuilt, xrds["time"].values, solar_actual)
-
-        mw_asbuilt_agg = mw_asbuilt * capacity_scale
-        mw_2025_agg = mw_2025 * capacity_scale
+            factor = self._factor_from_asbuilt(mw_asbuilt_agg, xrds["time"].values, solar_actual)
 
         shifted_index = pd.to_datetime(xrds["time"].values) - pd.Timedelta(hours=1)
 
@@ -662,11 +661,13 @@ class MonthlyRunner:
 
         iso3 = POP_COUNTRY_TO_ISO3.get(country)
         if iso3 is None:
+            print(f"No ISO3 code found for {country}", flush=True)
             self._population_weights_cache[country] = None
             return None
 
         raster_path = self.population_raster_files.get(iso3)
         if raster_path is None:
+            print(f"No population raster file path resolved for country '{country}' (iso3='{iso3}')", flush=True)
             self._population_weights_cache[country] = None
             return None
 
@@ -676,6 +677,7 @@ class MonthlyRunner:
                 data = np.asarray(arr.filled(0.0), dtype=np.float64)
                 valid = np.isfinite(data) & (data > 0.0)
                 if not np.any(valid):
+                    print(f"No valid population weights (all <= 0) found in raster for {country}: {raster_path}", flush=True)
                     self._population_weights_cache[country] = None
                     return None
 
@@ -684,7 +686,8 @@ class MonthlyRunner:
                 lon_vals, lat_vals = rasterio.transform.xy(src.transform, row_idx, col_idx, offset="center")
                 lat = np.asarray(lat_vals, dtype=np.float64)
                 lon = np.asarray(lon_vals, dtype=np.float64)
-        except Exception:
+        except Exception as e:
+            print(f"Error loading population raster for {country}: {e}", flush=True)
             self._population_weights_cache[country] = None
             return None
 
