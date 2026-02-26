@@ -38,21 +38,21 @@ def map_turbine_model(start_year: int, installation_type: str):
 
     elif installation_type == "Offshore floating":
         if start_year <= 2020:
-            return "IEA_Reference_6MW_100", 110.0
+            return "2020ATB_NREL_Reference_5.5MW_175", 110.0
         else:
-            return "DTU_Reference_v1_10MW_178", 130.0
+            return "2023NREL_Bespoke_8.3MW_196", 130.0
 
     else:  
         if start_year <= 2005:
-            return "NREL_Reference_5MW_126", 70.0 # Early offshore (Bonus/Siemens)
+            return "DOE_GE_1.5MW_77", 70.0 # Early offshore proxy using available model
         elif start_year <= 2010:
-            return "NREL_Reference_5MW_126", 90.0
+            return "2017COE_Market_Average_2.3MW_113", 90.0
         elif start_year <= 2015:
-            return "LEANWIND_Reference_8MW_164", 100.0 # Siemens 3.6/4.0 era
+            return "2020ATB_NREL_Reference_4MW_150", 100.0
         elif start_year <= 2019:
-            return "DTU_Reference_v1_10MW_178", 110.0 # MHI Vestas 8MW era
+            return "2020ATB_NREL_Reference_5.5MW_175", 110.0
         else: 
-            return "IEA_Reference_15MW_240", 140.0
+            return "2023NREL_Bespoke_8.3MW_196", 140.0
 
 def multi_turb_curve(turb_name, num_turbs, wind_speed_std_dev=1.5):
     turbs = Turbines()
@@ -580,12 +580,14 @@ def operating_farms(country, power_type):
             "Latvia": ["operating"],
             "Estonia": ["operating"],
             "Luxembourg": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Iceland": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
             "Bosnia and Herzegovina": ["operating"],
             "Cyprus": ["operating", "construction"],
             "Montenegro": ["operating"],
             "North Macedonia": ["operating"],
-            "Kosovo": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Kosovo": ["operating"],
+            "Ukraine": ["operating"],
+            "Albania": ["operating"],
+            "Åland Islands": ["operating"]
         }
     elif power_type == 'solar':
         operating_dict = {
@@ -626,6 +628,9 @@ def operating_farms(country, power_type):
             "Montenegro": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
             "North Macedonia": ["operating"],
             "Kosovo": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Ukraine": ["operating"],
+            "Albania": ["operating"],
+            "Åland Islands": ["operating"]
         }
     else:
         raise ValueError("power_type must be either 'wind' or 'solar'")
