@@ -2,8 +2,8 @@
 # coding: utf-8
 
 #-----------Run commands----------------#
-# python -u scripts/weather_energy_monthly.py --year 2024 --month 01 --n-jobs-pv 2
-# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2022 --month "$m" --n-jobs-pv 2; done
+# python -u scripts/weather_energy_monthly.py --year 2014 --month 02 --n-jobs-pv 2
+# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2002 --month "$m" --n-jobs-pv 2; done
 
 # nohup bash -lc 'for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2; done' > run_2024.log 2>&1 &
 # disown
@@ -770,10 +770,10 @@ class MonthlyRunner:
     
     def _weighted_factor_from_history(self, area_code: str, factor_col: str, ms: MonthSpec) -> float | None:
         target_month = int(ms.month_number)
-        values = []
+        records: list[tuple[pd.Timestamp, float]] = []
         cf_root = self.history_root
         if not cf_root.exists():
-            return None
+            return 1.0
 
         files_found = list(sorted(cf_root.glob("**/correction_factors/*_pv_wind_country_factors.csv")))
         
@@ -807,14 +807,37 @@ class MonthlyRunner:
                 continue
 
             val = pd.to_numeric(row[col_to_use], errors="coerce").iloc[0]
-            if not np.isfinite(val) or float(val) <= 0.0:
+            if not np.isfinite(val):
                 continue
 
-            values.append(float(val))
+            val_f = float(val)
+            # Months without actual generation data are represented by fallback factors
+            # (typically 1.0 or 0.0); do not use those in historical fallback estimation.
+            if np.isclose(val_f, 1.0) or np.isclose(val_f, 0.0):
+                continue
 
-        if not values:
-            return None
-        return sum(values) / len(values)
+            records.append((pd.Timestamp(year=year, month=month, day=1), val_f))
+
+        # No valid historical months with actual generation -> default fallback.
+        if not records:
+            return 1.0
+
+        # One valid month -> use that month's factor directly.
+        if len(records) == 1:
+            return records[0][1]
+
+        # Two or more valid months -> recency time-weighted average.
+        records.sort(key=lambda item: item[0])
+        dates = pd.to_datetime([date for date, _ in records])
+        values = np.asarray([value for _, value in records], dtype=np.float64)
+
+        days_from_start = (dates - dates.min()).days.to_numpy(dtype=np.float64)
+        weights = days_from_start + 1.0
+
+        w_sum = float(weights.sum())
+        if w_sum <= 0:
+            return float(values.mean())
+        return float(np.dot(values, weights) / w_sum)
 
     def plotting_timeseries(
         self,
