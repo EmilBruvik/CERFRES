@@ -19,9 +19,9 @@ import argparse
 import datetime
 from scipy.spatial import cKDTree
 
-# Setup path to find functions.py
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+import config
 
 # Helper to read CSV (Copied to be standalone)
 def _read_tracker_csv(path: str) -> pd.DataFrame:
@@ -68,10 +68,9 @@ def main():
     year = args.year
     month = args.month.zfill(2)
 
-    # Paths (Hardcoded based on user context)
-    grid_file = Path(f"/Data/gfi/vindenergi/nab015/highres-renewable-dataset/per-farm-production/{year}/{month}_{year}_pv_wind_grid.nc")
-    tracker_csv = "/Data/gfi/vindenergi/nab015/Solar_data/Global-Solar-Power-Tracker-February-2026.csv"
-    pop_tif = Path("/Data/gfi/vindenergi/nab015/Solar_data/population_distribution/deu_pop_2026_CN_1km_R2025A_UA_v1.tif")
+    grid_file = config.OUTPUT_DIR_FARM / year / f"{month}_{year}_pv_wind_grid.nc"
+    tracker_csv = config.SOLAR_TRACKER_CSV
+    pop_tif = config.SOLAR_POPULATION_DIR / "deu_pop_2026_CN_1km_R2025A_UA_v1.tif"
 
     if not grid_file.exists():
         print(f"Error: Grid file not found: {grid_file}")

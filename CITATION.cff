@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "CERFRES: High-Resolution European Renewable Energy Generation Dataset"
+abstract: >
+  Code to model, calibrate, and analyze high-resolution hourly power generation for
+  Solar PV, Onshore Wind, and Offshore Wind across Europe. The model maps individual
+  power plant locations from the Global Energy Monitor asset trackers to a
+  high-resolution CERRA weather grid, computes physical power output, and calibrates
+  results against historical ENTSO-E generation data.
+authors:
+  - family-names: "Bruvik"
+    given-names: "Emil"
+repository-code: "https://github.com/emilbruvik/cerfres"
+license: MIT
+keywords:
+  - renewable energy
+  - solar PV
+  - wind power
+  - Europe
+  - reanalysis
+  - CERRA
+  - power generation
+  - timeseries

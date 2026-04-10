@@ -5,7 +5,7 @@ import xarray as xr
 import turbine_models
 from turbine_models.parser import Turbines
 from scipy.stats import norm
-from scipy.interpolate import CubicSpline, interp1d, PchipInterpolator
+from scipy.interpolate import PchipInterpolator
 
 def map_turbine_model(start_year: int, installation_type: str):
     """

@@ -37,6 +37,7 @@ if "functions" in sys.modules:
     del sys.modules["functions"]
 
 import functions
+import config
 
 MONTHS = [
     ("01", "jan"), ("02", "feb"), ("03", "mar"), ("04", "apr"),
@@ -168,7 +169,7 @@ class ActualGenerationLoader:
 
     def load_month_file(self, year: str, month_number: str) -> pd.DataFrame:
         return pd.read_csv(
-            f"/Data/gfi/vindenergi/nab015/Actual_Generation/AggregatedGenerationPerType/{year}/"
+            config.ACTUAL_GENERATION_DIR / year /
             f"{year}_{month_number}_AggregatedGenerationPerType_16.1.B_C_r3.csv",
             sep="\t",
         )
@@ -229,12 +230,8 @@ class ActualGenerationLoader:
 class PVCalculator:
     def __init__(self, n_jobs: int = 8):
         self.n_jobs = n_jobs
-        self.df_main = _read_tracker_csv(
-            "/Data/gfi/vindenergi/nab015/Solar_data/Global-Solar-Power-Tracker-February-2026.csv"
-        )
-        self.df_distributed = _read_tracker_csv(
-            "/Data/gfi/vindenergi/nab015/Solar_data/Global-Solar-Power-Tracker-February-2026-Distributed.csv"
-        )
+        self.df_main = _read_tracker_csv(config.SOLAR_TRACKER_CSV)
+        self.df_distributed = _read_tracker_csv(config.SOLAR_TRACKER_DISTRIBUTED_CSV)
 
     @staticmethod
     def _deaccumulate_robust(da: xr.DataArray) -> xr.DataArray:
@@ -247,10 +244,10 @@ class PVCalculator:
         return hourly_vals
 
     def open_weather(self, ms: MonthSpec) -> xr.Dataset:
-        fn1 = f"/Data/gfi/vindenergi/nab015/CERRA_single_level/{ms.year}/reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time1.nc"
-        fn2 = f"/Data/gfi/vindenergi/nab015/CERRA_single_level/{ms.year}/reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time2.nc"
-        fn3 = f"/Data/gfi/vindenergi/nab015/CERRA_single_level/{ms.year}/reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time3.nc"
-        fn4 = f"/Data/gfi/vindenergi/nab015/CERRA_single_level/{ms.year}/reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time4.nc"
+        fn1 = config.CERRA_SINGLE_LEVEL_DIR / ms.year / f"reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time1.nc"
+        fn2 = config.CERRA_SINGLE_LEVEL_DIR / ms.year / f"reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time2.nc"
+        fn3 = config.CERRA_SINGLE_LEVEL_DIR / ms.year / f"reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time3.nc"
+        fn4 = config.CERRA_SINGLE_LEVEL_DIR / ms.year / f"reanalysis-cerra-single-levels-{ms.month_name}-{ms.year}-time4.nc"
 
         ds_list = [xr.open_dataset(f, engine="h5netcdf") for f in (fn1, fn2, fn3, fn4)]
         raw = xr.concat(ds_list, dim="valid_time").sortby("valid_time")
@@ -460,17 +457,13 @@ class PVCalculator:
 
 class WindCalculator:
     def __init__(self):
-        df_main = _read_tracker_csv(
-            "/Data/gfi/vindenergi/nab015/Wind_data/Global-Wind-Power-Tracker-February-2026.csv"
-        )
-        df_below = _read_tracker_csv(
-            "/Data/gfi/vindenergi/nab015/Wind_data/Global-Wind-Power-Tracker-February-2026-Below_Threshold.csv"
-        )
+        df_main = _read_tracker_csv(config.WIND_TRACKER_CSV)
+        df_below = _read_tracker_csv(config.WIND_TRACKER_BELOW_CSV)
         self.df = pd.concat([df_main, df_below], ignore_index=True)
         self.ref_startyear = int(pd.to_numeric(self.df["Start year"], errors="coerce").median())
 
     def open_weather(self, ms: MonthSpec) -> xr.Dataset:
-        fn = f"/Data/gfi/vindenergi/nab015/CERRA_multi_level/{ms.year}/cerra_{ms.year}_multi_level_{ms.month_name}.nc"
+        fn = config.CERRA_MULTI_LEVEL_DIR / ms.year / f"cerra_{ms.year}_multi_level_{ms.month_name}.nc"
         ds = xr.open_dataset(fn, engine="h5netcdf")
         ds.load()
         return ds
@@ -622,7 +615,7 @@ class MonthlyRunner:
         pop_dir = Path(
             os.environ.get(
                 "PV_POPULATION_DISTRIBUTION_DIR",
-                "/Data/gfi/vindenergi/nab015/Solar_data/population_distribution",
+                str(config.SOLAR_POPULATION_DIR),
             )
         )
         if not pop_dir.exists():
@@ -858,7 +851,7 @@ class MonthlyRunner:
         solar_actual = self.actual_loader.solar_series_mw(actual_file, area_code)
         pv_model_series, solar_actual_series = self._align_series(pv_model, pv_time, solar_actual)
 
-        pv_dir = Path(f"/Data/gfi/vindenergi/nab015/figures/pv_power_comparison/new_data/{ms.year}/{ms.month_number}")
+        pv_dir = config.FIGURES_DIR / "pv_power_comparison" / "new_data" / ms.year / ms.month_number
         pv_dir.mkdir(parents=True, exist_ok=True)
 
         fig, ax = plt.subplots(figsize=(12, 5))
@@ -884,7 +877,7 @@ class MonthlyRunner:
         wind_actual = self.actual_loader.wind_series_mw(actual_file, area_code)
         wind_model_series, wind_actual_series = self._align_series(wind_model, wind_time, wind_actual)
 
-        wind_dir = Path(f"/Data/gfi/vindenergi/nab015/figures/wind_power_comparison/new_data/{ms.year}/{ms.month_number}")
+        wind_dir = config.FIGURES_DIR / "wind_power_comparison" / "new_data" / ms.year / ms.month_number
         wind_dir.mkdir(parents=True, exist_ok=True)
 
         fig, ax = plt.subplots(figsize=(16, 7))
@@ -1143,11 +1136,8 @@ def main():
     p.add_argument("--month", required=True, help="Month number: 01..12")
     p.add_argument("--n-jobs-pv", type=int, default=8)
     
-    # Aggregated output defaults to original path
-    default_data_path = "/Data/gfi/vindenergi/nab015/highres-renewable-dataset/country-aggregated-production"
-    p.add_argument("--out-dir", default=default_data_path)
-    # Per-farm output defaults to new request path
-    p.add_argument("--out-dir-farm", default="/Data/gfi/vindenergi/nab015/highres-renewable-dataset/per-farm-production")
+    p.add_argument("--out-dir", default=str(config.OUTPUT_DIR))
+    p.add_argument("--out-dir-farm", default=str(config.OUTPUT_DIR_FARM))
     
     args = p.parse_args()
 
@@ -1160,7 +1150,7 @@ def main():
         out_dir_aggregated=Path(args.out_dir) / args.year,
         out_dir_farms=Path(args.out_dir_farm) / args.year,
         n_jobs_pv=args.n_jobs_pv,
-        history_root=Path(default_data_path)
+        history_root=config.OUTPUT_DIR
     )
     runner.run_month(MonthSpec(year=args.year, month_number=month_number, month_name=month_name))
 
