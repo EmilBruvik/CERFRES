@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
-OUTPUT_FILE = Path(
-    "/Data/gfi/vindenergi/nab015/Wind_data/havvind_identifiserteomrader_2023f/"
-    "havvind_identifiserteomrader_output/offshore_all_sites_wind_timeseries_2024_1000MW.nc"
+OUTPUT_FILE = (
+    config.DATA_ROOT / "Wind_data" / "havvind_identifiserteomrader_2023f"
+    / "havvind_identifiserteomrader_output" / "offshore_all_sites_wind_timeseries_2024_1000MW.nc"
 )
 EXPECTED_YEAR = 2024
 REQUIRE_FULL_YEAR = False

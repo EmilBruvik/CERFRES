@@ -12,7 +12,8 @@ from scripts.weather_energy_monthly import (
     MonthlyRunner, countries_tracker, countries_codes, ZONES, _installation_bucket, GridIndexer
 )
 
-DATA_ROOT = Path("/Data/gfi/vindenergi/nab015/highres-renewable-dataset")
+import config
+DATA_ROOT = config.OUTPUT_DIR.parent
 YEAR = 2024
 
 def process_aggregated():

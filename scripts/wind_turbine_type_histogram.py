@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 import functions
+import config
 
 env_bin = os.path.join(sys.prefix, "bin")
 if env_bin not in os.environ.get("PATH", ""):
@@ -105,12 +106,12 @@ def main() -> None:
     parser.add_argument(
         "--main-csv",
         type=Path,
-        default=Path("/Data/gfi/vindenergi/nab015/Wind_data/Global-Wind-Power-Tracker-February-2026.csv"),
+        default=config.WIND_TRACKER_CSV,
     )
     parser.add_argument(
         "--below-threshold-csv",
         type=Path,
-        default=Path("/Data/gfi/vindenergi/nab015/Wind_data/Global-Wind-Power-Tracker-February-2026-Below_Threshold.csv"),
+        default=config.WIND_TRACKER_BELOW_CSV,
     )
     parser.add_argument(
         "--top-n",
@@ -121,12 +122,12 @@ def main() -> None:
     parser.add_argument(
         "--output-figure",
         type=Path,
-        default=Path("/Data/gfi/vindenergi/nab015/figures/turbine_type_histogram.pdf"),
+        default=config.FIGURES_DIR / "turbine_type_histogram.pdf",
     )
     parser.add_argument(
         "--output-table",
         type=Path,
-        default=Path("/Data/gfi/vindenergi/nab015/figures/turbine_type_counts.csv"),
+        default=config.FIGURES_DIR / "turbine_type_counts.csv",
         help="Optional CSV export of all mapped turbine model counts.",
     )
     args = parser.parse_args()

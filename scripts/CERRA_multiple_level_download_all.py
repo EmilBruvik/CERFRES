@@ -1,9 +1,13 @@
 import time
+import sys
 from pathlib import Path
 
 import cdsapi
 import os
 from calendar import monthrange
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
 dataset = "reanalysis-cerra-height-levels"
 
@@ -70,7 +74,7 @@ for year in years:
         "data_format": "netcdf"
     }
 
-        target_folder = Path("/Data/gfi/vindenergi/nab015/CERRA_multi_level") / year
+        target_folder = config.CERRA_MULTI_LEVEL_DIR / year
         
         os.makedirs(target_folder, exist_ok=True)
         print(f"Requesting data for {month_name} {year}...")
