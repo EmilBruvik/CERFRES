@@ -1,0 +1,13 @@
+numpy
+pandas
+xarray
+scipy
+matplotlib
+pvlib
+turbine_models
+rasterio
+h5netcdf
+netcdf4
+joblib
+tqdm
+cdsapi
