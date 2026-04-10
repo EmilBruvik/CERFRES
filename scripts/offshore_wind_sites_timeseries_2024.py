@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 import functions
+import config
 
 
 MONTHS = [
@@ -30,7 +31,7 @@ MONTHS = [
 ]
 
 
-shape_folder = Path("/Data/gfi/vindenergi/nab015/Wind_data/havvind_identifiserteomrader_2023f") #path to shape files
+shape_folder = config.DATA_ROOT / "Wind_data" / "havvind_identifiserteomrader_2023f"
 
 # -------- Script configuration --------
 SHAPEFILE = shape_folder / "havvind_identifiserteomrader_2023f.shp"
@@ -39,7 +40,7 @@ SITE_NAMES = ""
 REFERENCE_CAPACITY_MW = 1000.0
 CAPACITY_DENSITY_MW_KM2 = 5.0
 YEAR = 2024
-WEATHER_ROOT = Path("/Data/gfi/vindenergi/nab015/CERRA_multi_level")
+WEATHER_ROOT = config.CERRA_MULTI_LEVEL_DIR
 OUTPUT = shape_folder / "havvind_identifiserteomrader_output/offshore_all_sites_wind_timeseries_2024_1000MW.nc"
 
 
