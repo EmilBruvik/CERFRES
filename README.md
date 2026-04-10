@@ -18,7 +18,7 @@ Python 3.10 or later is recommended. Install all dependencies with:
 pip install -r requirements.txt
 ```
 
-Key packages: `numpy`, `pandas`, `xarray`, `scipy`, `pvlib`, `turbine_models`, `rasterio`, `h5netcdf`, `joblib`, `tqdm`, `cdsapi`.
+Key packages: `numpy`, `pandas`, `xarray`, `scipy`, `pvlib`, `turbine_models`, `rasterio`, `h5netcdf`, `joblib`, `tqdm`.
 
 ## Data Requirements
 
@@ -32,7 +32,6 @@ The scripts rely on three external datasets that must be downloaded separately. 
 | GEM Wind Power Tracker | Asset-level wind farm database | [GEM](https://globalenergymonitor.org/projects/global-wind-power-tracker/download-data/) |
 | ENTSO-E generation | Actual hourly aggregated generation per production type | [ENTSO-E Transparency](https://transparency.entsoe.eu/) |
 
-CERRA data can also be downloaded programmatically using `scripts/CERRA_multiple_level_download_all.py` (requires a free CDS API key).
 
 ## Configuration
 
@@ -79,16 +78,6 @@ for m in $(seq -w 1 12); do
 done
 ```
 
-### Per-farm timeseries output
-
-Add `--write-farm-timeseries` to also write asset-level NetCDF files alongside the aggregated output:
-
-```bash
-python -u scripts/weather_energy_monthly.py --year 2024 --month 09 --n-jobs-pv 2 --write-farm-timeseries
-```
-
-See [PER_FARM_TIMESERIES.md](PER_FARM_TIMESERIES.md) for details on the output format and how to filter by scenario.
-
 ### CLI options
 
 | Option | Default | Description |
@@ -96,9 +85,8 @@ See [PER_FARM_TIMESERIES.md](PER_FARM_TIMESERIES.md) for details on the output f
 | `--year` | *(required)* | Year to process |
 | `--month` | *(required)* | Month number (01–12) |
 | `--n-jobs-pv` | `8` | Parallel jobs for PV calculation |
-| `--out-dir` | `config.OUTPUT_DIR` | Output directory for aggregated results |
-| `--out-dir-farm` | `config.OUTPUT_DIR_FARM` | Output directory for per-farm results |
-| `--write-farm-timeseries` | off | Enable per-farm NetCDF output |
+| `--out-dir` | `config.OUTPUT_DIR` | Output directory for aggregated country results |
+| `--out-dir-farm` | `config.OUTPUT_DIR_FARM` | Output directory for gridded spatial results |
 
 ## Project Structure
 
@@ -109,17 +97,12 @@ CERFRES/
 ├── requirements.txt                       # Python dependencies
 ├── scripts/
 │   ├── weather_energy_monthly.py          # Main script — runs the model for one month
-│   ├── create_uncalibrated_timeseries.py  # Reverses calibration to produce raw model output
-│   ├── fix_germany_pv_distribution.py     # Patches Germany distributed PV using population raster
 │   ├── wind_turbine_type_histogram.py     # Analysis: histogram of mapped turbine model types
-│   ├── validate_offshore_wind_output.py   # Validates offshore wind output files
-│   ├── offshore_wind_sites_timeseries_2024.py  # Timeseries for Norwegian offshore candidate sites
-│   └── CERRA_multiple_level_download_all.py    # Downloads CERRA height-level data via CDS API
+│   └── validate_offshore_wind_output.py   # Validates offshore wind output files
 ├── notebooks/
 │   ├── complementarity_analysis.ipynb     # Analysis of wind/solar complementarity across Europe
 │   └── validation.ipynb                   # Model validation against ENTSO-E actual generation
-├── test_farm_timeseries.py                # Validation tests for the per-farm feature
-└── PER_FARM_TIMESERIES.md                 # Detailed guide for the per-farm output feature
+└── test_farm_timeseries.py                # Validation tests for the per-farm feature
 ```
 
 ## Output Format
@@ -129,7 +112,7 @@ The main output is a NetCDF file per month with dimensions `(time, country)` con
 - `pv_power_mw` — Solar PV generation (MW), calibrated
 - `wind_power_mw` — Wind generation (MW), calibrated
 
-Per-farm files (when `--write-farm-timeseries` is used) add asset-level resolution with stable farm identifiers. See [PER_FARM_TIMESERIES.md](PER_FARM_TIMESERIES.md) for the full schema.
+A spatial grid output is also written per month (`{mm}_{year}_pv_wind_grid.nc`) with dimensions `(time, y, x)`, containing separate variables for onshore wind, offshore wind, utility-scale PV, and distributed PV.
 
 ## License
 
