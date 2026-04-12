@@ -6,7 +6,9 @@ This repository contains the code used to produce CERFRES: a high-resolution, ho
 
 If you use this dataset or code in your research, please cite:
 
-> [Paper under review — citation will be updated upon publication]
+> Bruvik, E. (2026). *CERFRES: Calibrated High-Resolution European Renewable Energy Generation Dataset* [Data set]. Zenodo. https://doi.org/[ZENODO DOI — update upon publication]
+
+The related journal paper is currently under review. This entry will be updated with the paper DOI upon publication.
 
 ## Installation
 

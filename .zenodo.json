@@ -1,0 +1,40 @@
+{
+  "title": "CERFRES: Calibrated High-Resolution European Renewable Energy Generation Dataset",
+  "upload_type": "dataset",
+  "description": "<p>CERFRES is an hourly dataset of power generation for Solar PV, Onshore Wind, and Offshore Wind across 44 European countries and bidding zones. Generation timeseries are computed by mapping individual power plant locations from the Global Energy Monitor (GEM) Solar and Wind Power Trackers to the Copernicus European Regional Reanalysis (CERRA) high-resolution weather grid. Solar PV output is calculated using the PVWatts model (via pvlib-python) and wind power using turbine-type-specific power curves matched to installation year and technology type. Modelled generation is calibrated against actual generation reported on the ENTSO-E Transparency Platform using a per-country/zone calibration factor.</p><p>The dataset is provided in two complementary NetCDF formats per month: (1) country-aggregated timeseries (dimensions: time &times; country/bidding zone) with as-built and 2025-fleet-scenario estimates for both PV and wind; (2) spatially gridded output (dimensions: time &times; y &times; x) separating onshore wind, offshore wind, utility-scale PV, and population-weighted distributed PV. All variables are in megawatts (MW) at hourly resolution.</p><p>The 44 covered areas include 33 European countries and sub-national bidding zones for Norway (NO1&ndash;NO5), Sweden (SE1&ndash;SE4), and Denmark (DK1&ndash;DK2). Distributed PV is spatially allocated using WorldPop 2026 country-level population rasters. The code used to produce this dataset is available at https://github.com/emilbruvik/cerfres.</p>",
+  "access_right": "open",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Bruvik, Emil",
+      "affiliation": "University of Bergen"
+    }
+  ],
+  "keywords": [
+    "renewable energy",
+    "solar energy",
+    "photovoltaic",
+    "wind energy",
+    "power generation",
+    "Europe",
+    "reanalysis",
+    "CERRA",
+    "ENTSO-E",
+    "timeseries",
+    "hourly resolution",
+    "energy dataset",
+    "calibration",
+    "pvlib",
+    "high resolution"
+  ],
+  "notes": "Data produced using the CERFRES modelling framework (https://github.com/emilbruvik/cerfres). Input weather data: CERRA reanalysis (Copernicus Climate Data Store). Asset data: Global Energy Monitor Solar and Wind Power Trackers (February 2026 release). Calibration data: ENTSO-E Transparency Platform. Related publication: under review.",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/emilbruvik/cerfres",
+      "relation": "isSupplementedBy",
+      "resource_type": "software"
+    }
+  ],
+  "language": "eng",
+  "version": "1.0.0"
+}
