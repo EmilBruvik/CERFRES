@@ -195,24 +195,45 @@ def estimate_wind_power(country, lat, lon, capacity, startyear, prod_year, statu
         hub_height = mapped_hub_height if mapped_hub_height else specs['hub_height']
         rated_power_kw = specs['rated_power']
 
-        #Find the index of the height level closest to the hub_height
+        #find the index of the height level closest to the hub_height
         available_heights = xrds['heightAboveGround'].values
 
-        ref_height = 100.0
-        ref_height_idx = np.abs(available_heights - ref_height).argmin()
-        if spatial_interpolation == True:
-            wind_ts_ref = interpolate_idw(xrds, lat, lon, 'ws', y_idx, x_idx, ref_height_idx=ref_height_idx, neighbors=4).values
-        else:
-            wind_ts_ref = xrds['ws'].isel(heightAboveGround=ref_height_idx, y=y_idx, x=x_idx).values
-
-        if installation_type == 'offshore' or installation_type == 'unknown':
-            alpha = 1/7 
-        else:
-            alpha = 0.22
-            
-        wind_ts_hub_height = wind_ts_ref * (hub_height / ref_height)**alpha
-        wind_ts_series = pd.Series(wind_ts_hub_height)
+        alpha_fixed = 1/7 if (installation_type == 'offshore' or installation_type == 'unknown') else 0.22
         
+        if hub_height < available_heights.min() or hub_height > available_heights.max():  
+            ref_height_idx = np.abs(available_heights - hub_height).argmin()
+            ref_height = available_heights[ref_height_idx]
+            
+            if spatial_interpolation:
+                wind_ts_ref = interpolate_idw(xrds, lat, lon, 'ws', y_idx, x_idx, ref_height_idx=ref_height_idx, neighbors=4).values
+            else:
+                wind_ts_ref = xrds['ws'].isel(heightAboveGround=ref_height_idx, y=y_idx, x=x_idx).values
+                
+            wind_ts_hub_height = wind_ts_ref * (hub_height / ref_height)**alpha_fixed
+            
+        else:
+            lower_idx = np.searchsorted(available_heights, hub_height, side='right') - 1
+            upper_idx = lower_idx + 1
+            z_lower = available_heights[lower_idx]
+            z_upper = available_heights[upper_idx]
+
+            if spatial_interpolation:
+                w_lower = interpolate_idw(xrds, lat, lon, 'ws', y_idx, x_idx,
+                                          ref_height_idx=lower_idx, neighbors=4).values
+                w_upper = interpolate_idw(xrds, lat, lon, 'ws', y_idx, x_idx,
+                                          ref_height_idx=upper_idx, neighbors=4).values
+            else:
+                w_lower = xrds['ws'].isel(heightAboveGround=lower_idx, y=y_idx, x=x_idx).values
+                w_upper = xrds['ws'].isel(heightAboveGround=upper_idx, y=y_idx, x=x_idx).values
+
+            #locally fitted shear exponent from bracketing levels (hourly, vectorised)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                speed_ratio = np.where(w_lower > 0, w_upper / w_lower, 1.0)
+                alpha_local = np.log(np.clip(speed_ratio, 1e-6, None)) / np.log(z_upper / z_lower)
+
+            wind_ts_hub_height = w_lower * (hub_height / z_lower) ** alpha_local
+
+        wind_ts_series = pd.Series(wind_ts_hub_height)
         if wts_smoothing:
             wind_ts = wind_ts_series.rolling(window=3, center=True, min_periods=1).mean().values
         else:   
@@ -552,22 +573,22 @@ def operating_farms(country, power_type):
             "Sweden":["operating", 'construction'],
             "Norway": ["operating"],
             "Finland": ["operating"],
-            "Denmark": ['operating', 'shelved', 'pre-construction', 'announced', 'shelved - inferred 2 y'],
-            "Netherlands": ["operating", "construction"],
-            "Germany": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "United Kingdom": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Belgium": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Denmark": ['operating'],
+            "Netherlands": ["operating"],
+            "Germany": ["operating", "shelved", "shelved - inferred 2 y"],
+            "United Kingdom": ["operating"],
+            "Belgium": ["operating"],
             "France": ["operating"],
             "Austria": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
             "Switzerland": ["operating"],
-            "Italy": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Italy": ["operating"],
             "Spain": ["operating"],
-            "Portugal": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Portugal": ["operating"],
             "Greece": ["operating"],
             "Ireland": ["operating"],
-            "Croatia": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Croatia": ["operating", "shelved", "shelved - inferred 2 y"],
             "Slovenia": ["operating"],
-            "Czech Republic": ["operating", "construction", "pre-construction", "shelved - inferred 2 y"],
+            "Czech Republic": ["operating"],
             "Slovakia": ["operating"],
             "Serbia": ["operating"],
             "Slovenia": ["operating"],
@@ -591,43 +612,42 @@ def operating_farms(country, power_type):
         }
     elif power_type == 'solar':
         operating_dict = {
-            "Sweden":["operating", 'construction', "shelved"],
+            "Sweden": ["operating"],
             "Norway": ["operating"],
-            "Finland": ["operating", "construction", 'shelved - inferred 2 y', "shelved"],
-            "Denmark": ["operating", "construction", "shelved", "shelved - inferred 2 y", "pre-construction"],
-            "Netherlands": ["operating", "construction"],
-            "Germany": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "United Kingdom": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Belgium": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "France": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Austria": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Switzerland": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Italy": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Spain": ["operating", "construction"],
-            "Portugal": ["operating", "construction", "shelved", "shelved - inferred 2 y"],
-            "Greece": ["operating", "construction"],
-            "Ireland": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Finland": ["operating"],
+            "Denmark": ["operating"],
+            "Netherlands": ["operating"],
+            "Germany": ["operating"],
+            "United Kingdom": ["operating"],
+            "Belgium": ["operating"],
+            "France": ["operating"],
+            "Austria": ["operating"],
+            "Switzerland": ["operating"],
+            "Italy": ["operating"],
+            "Spain": ["operating"],
+            "Portugal": ["operating"],
+            "Greece": ["operating"],
+            "Ireland": ["operating"],
             "Croatia": ["operating"],
-            "Slovenia": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Czech Republic": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Slovakia": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Serbia": ["operating"],
             "Slovenia": ["operating"],
-            "Moldova": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Czech Republic": ["operating"],
+            "Slovakia": ["operating"],
+            "Serbia": ["operating"],
+            "Moldova": ["operating"],
             "Romania": ["operating"],
-            "Bulgaria": ["operating", "construction"],
-            "Hungary": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Bulgaria": ["operating"],
+            "Hungary": ["operating"],
             "Poland": ["operating"],
             "Lithuania": ["operating"],
-            "Latvia": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Estonia": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Luxembourg": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Iceland": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Latvia": ["operating"],
+            "Estonia": ["operating"],
+            "Luxembourg": ["operating"],
+            "Iceland": ["operating"],
             "Bosnia and Herzegovina": ["operating"],
-            "Cyprus": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
-            "Montenegro": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Cyprus": ["operating"],
+            "Montenegro": ["operating"],
             "North Macedonia": ["operating"],
-            "Kosovo": ["operating", "construction", "pre-construction", "shelved", "shelved - inferred 2 y"],
+            "Kosovo": ["operating"],
             "Ukraine": ["operating"],
             "Albania": ["operating"],
             "Åland Islands": ["operating"]

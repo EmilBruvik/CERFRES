@@ -151,7 +151,7 @@ class GridIndexer:
         self.tree = cKDTree(np.vstack((p_main, p_left, p_right)))
 
     def map_points(self, lat: np.ndarray, lon: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        # Normalize query longitude to 0-360
+        #normalize query longitude to 0-360
         lon_q = lon % 360.0
         pts = np.column_stack((lat, lon_q))
         
@@ -289,17 +289,14 @@ class PVCalculator:
 
         if area_code in ZONES:
             if area_code.startswith('DK'):
-                # Robust Longitude split for Denmark
                 lon_vals = pd.to_numeric(df_country['Longitude'], errors='coerce')
                 if area_code == 'DK1':
                     df_country = df_country[lon_vals < 10.9].copy()
                 else: # DK2
                     df_country = df_country[lon_vals >= 10.9].copy()
             else:
-                # Standard city-mapping for NO/SE zones
                 zone_cities = functions.get_bidding_zone_mapping(area_code)
                 mask = pd.Series(False, index=df_country.index)
-                # Use specific columns based on whether this is PV or Wind loop
                 cols_to_check = LOCATION_COLS_PV if "PV" in str(type(self)) else LOCATION_COLS_WIND
                 for col in cols_to_check:
                     if col in df_country.columns:
@@ -429,8 +426,8 @@ class PVCalculator:
 
         shifted_index = pd.to_datetime(xrds["time"].values) - pd.Timedelta(hours=1)
 
-        mw_asbuilt_series = pd.Series(mw_asbuilt_agg * factor, index=shifted_index).astype(np.float64)
-        mw_2025_series = pd.Series(mw_2025_agg * factor, index=shifted_index).astype(np.float64)
+        mw_asbuilt_series = pd.Series(mw_asbuilt_agg, index=shifted_index).astype(np.float64)
+        mw_2025_series = pd.Series(mw_2025_agg, index=shifted_index).astype(np.float64)
 
         res = (
             mw_asbuilt_series.values,
@@ -493,7 +490,7 @@ class WindCalculator:
                 lon_vals = pd.to_numeric(df_country['Longitude'], errors='coerce')
                 if area_code == 'DK1':
                     df_country = df_country[lon_vals < 10.9].copy()
-                else: # DK2
+                else: #DK2
                     df_country = df_country[lon_vals >= 10.9].copy()
             else:
                 zone_cities = functions.get_bidding_zone_mapping(area_code)
@@ -567,7 +564,6 @@ class WindCalculator:
             if return_farm_data:
                 farm_results.append((i, ts_mw))
 
-        # Align wind timestamps to interval-start
         shifted_index_wind = pd.to_datetime(xrds["valid_time"].values) - pd.Timedelta(hours=1)
         
         if use_fallback:
@@ -580,8 +576,8 @@ class WindCalculator:
             )
 
         res = (
-            (mw_asbuilt * factor).astype(np.float64),
-            (mw_2025 * factor).astype(np.float64),
+            mw_asbuilt.astype(np.float64),
+            mw_2025.astype(np.float64),
             float(factor)
         )
         
@@ -780,11 +776,9 @@ class MonthlyRunner:
             except ValueError:
                 continue
 
-            # Limit to before June 2021
             if year > 2021 or (year == 2021 and month >= 6):
                 continue
             
-            # Use only the same month
             if month != target_month:
                 continue
 
@@ -804,22 +798,18 @@ class MonthlyRunner:
                 continue
 
             val_f = float(val)
-            # Months without actual generation data are represented by fallback factors
-            # (typically 1.0 or 0.0); do not use those in historical fallback estimation.
+
             if np.isclose(val_f, 1.0) or np.isclose(val_f, 0.0):
                 continue
 
             records.append((pd.Timestamp(year=year, month=month, day=1), val_f))
 
-        # No valid historical months with actual generation -> default fallback.
         if not records:
             return 1.0
 
-        # One valid month -> use that month's factor directly.
         if len(records) == 1:
             return records[0][1]
 
-        # Two or more valid months -> recency time-weighted average.
         records.sort(key=lambda item: item[0])
         dates = pd.to_datetime([date for date, _ in records])
         values = np.asarray([value for _, value in records], dtype=np.float64)
@@ -903,8 +893,6 @@ class MonthlyRunner:
         print(f"\n=== Running {ms.year}-{ms.month_number} ({ms.month_name}) ===", flush=True)
 
         if int(ms.year) < 2015:
-             # Before 2015, no actual generation data is available. 
-             # Create a dummy dataframe so the loader methods return empty Series without crashing.
             actual_file = pd.DataFrame(columns=["AreaDisplayName", "AreaCode", "ProductionType", "ActualGenerationOutput[MW]", "DateTime(UTC)", "MTU"])
         else:
             actual_file = self.actual_loader.load_month_file(ms.year, ms.month_number)
@@ -919,7 +907,6 @@ class MonthlyRunner:
         Y_dim = pv_ds.sizes["y"]
         X_dim = pv_ds.sizes["x"]
         
-        # We will use PV coordinates for the final output grid
         global_pv_grid = np.zeros((T_pv, Y_dim, X_dim), dtype=np.float32)
         global_pv_distributed_grid = np.zeros((T_pv, Y_dim, X_dim), dtype=np.float32)
         global_wind_onshore_grid = np.zeros((T_pv, Y_dim, X_dim), dtype=np.float32)
@@ -975,7 +962,7 @@ class MonthlyRunner:
                     y = pv_df_country.iloc[i]["y_idx"]
                     x = pv_df_country.iloc[i]["x_idx"]
                     
-                    ts_mw = (ts_watts / 1_000_000.0) * pv_factor
+                    ts_mw = ts_watts / 1_000_000.0
                     pv_farm_only_area += ts_mw
                     global_pv_grid[:, int(y), int(x)] += ts_mw
 
@@ -1020,8 +1007,7 @@ class MonthlyRunner:
                     y = w_df_country.iloc[i]["y_idx"]
                     x = w_df_country.iloc[i]["x_idx"]
                     
-                    # Apply factor
-                    ts_mw = ts_mw_unc * w_factor
+                    ts_mw = ts_mw_unc
                     bucket = _installation_bucket(w_df_country.iloc[i].get("Installation Type", ""))
                     if bucket == "offshore":
                         global_wind_offshore_grid[:, int(y), int(x)] += ts_mw
@@ -1054,7 +1040,6 @@ class MonthlyRunner:
                 actual_file=actual_file,
             )
 
-        # 5. Save Aggregated Country Output
         pv_asbuilt = np.stack(pv_asbuilt_all, axis=1)
         pv_2025 = np.stack(pv_2025_all, axis=1)
         wind_asbuilt = np.stack(wind_asbuilt_all, axis=1)
@@ -1085,9 +1070,7 @@ class MonthlyRunner:
         self._write_atomic(out_agg, out_file_agg)
         print(f"Wrote aggregated file: {out_file_agg}", flush=True)
 
-        # 6. Save Gridded Per-Farm Output
         print("Saving gridded per-farm output...", flush=True)
-        # Using dimensions and coords from pv_ds as reference
         grid_out = xr.Dataset(
             {
                 'wind_power_mw_onshore': (("time", "y", "x"), global_wind_onshore_grid),
@@ -1110,7 +1093,6 @@ class MonthlyRunner:
             'WorldPop 2026 country GeoTIFF weighting; fallback to farm-capacity weighting if raster missing'
         )
         
-        # Free memory
         del global_wind_onshore_grid, global_wind_offshore_grid, global_pv_grid, global_pv_distributed_grid
 
         out_file_grid = self.out_dir_farms / f"{ms.month_number}_{ms.year}_pv_wind_grid.nc"
@@ -1119,7 +1101,6 @@ class MonthlyRunner:
         self._write_atomic(grid_out, out_file_grid)
         print(f"Wrote gridded file: {out_file_grid}", flush=True)
 
-        # Cleanup
         pv_ds.close()
         wind_ds.close()
         del pv_ds, wind_ds, pv_indexer, wind_indexer, out_agg, grid_out
