@@ -1,6 +1,6 @@
 # CERFRES — High-Resolution European Renewable Energy Generation Dataset
 
-This repository contains the code used to produce CERFRES: a high-resolution, hourly dataset of Solar PV, Onshore Wind, and Offshore Wind power generation across Europe. The model maps individual power plant locations from the Global Energy Monitor asset trackers to a high-resolution weather grid, computes physical power output from local weather conditions, and calibrates the result against historical ENTSO-E generation data.
+CERFRES is a high-resolution, hourly dataset of Solar PV, Onshore Wind, and Offshore Wind power generation across Europe. The model maps individual power plant locations from the Global Energy Monitor asset trackers to a high-resolution weather grid, computes physical power output from local weather conditions, and calibrates the result against historical ENTSO-E generation data.
 
 ## Citation
 
