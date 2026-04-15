@@ -3,11 +3,15 @@
 
 #-----------Run commands----------------#
 # python -u scripts/weather_energy_monthly.py --year 2014 --month 02 --n-jobs-pv 2
-# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2002 --month "$m" --n-jobs-pv 2; done
+# for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2025 --month "$m" --n-jobs-pv 2; done
 
 # nohup bash -lc 'for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2; done' > run_2024.log 2>&1 &
 # disown
 # set -e; for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year 2024 --month "$m" --n-jobs-pv 2; done
+
+# Multiple years (descending):
+# for y in $(seq 2024 -1 1995); do for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year "$y" --month "$m" --n-jobs-pv 2; done; done
+# nohup bash -lc 'set -e; for y in $(seq 2024 -1 1995); do for m in $(seq -w 1 12); do python -u scripts/weather_energy_monthly.py --year "$y" --month "$m" --n-jobs-pv 2; done; done' > run_2025_2014.log 2>&1 &
 #---------------------------------------#
 
 from __future__ import annotations

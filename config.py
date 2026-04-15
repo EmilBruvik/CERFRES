@@ -33,6 +33,9 @@ WIND_TRACKER_BELOW_CSV = DATA_ROOT / "Wind_data" / "Global-Wind-Power-Tracker-Fe
 ACTUAL_GENERATION_DIR = DATA_ROOT / "Actual_Generation" / "AggregatedGenerationPerType"
 
 # Output directories
-OUTPUT_DIR      = DATA_ROOT / "highres-renewable-dataset" / "country-aggregated-production"
-OUTPUT_DIR_FARM = DATA_ROOT / "highres-renewable-dataset" / "per-farm-production"
+# OUTPUT_DIR      = DATA_ROOT / "highres-renewable-dataset" / "country-aggregated-production"
+# OUTPUT_DIR_FARM = DATA_ROOT / "highres-renewable-dataset" / "per-farm-production"
+# FIGURES_DIR     = DATA_ROOT / "figures"
+OUTPUT_DIR      = DATA_ROOT / "highres-renewable-dataset" / "uncalibrated" / "country-aggregated-production"
+OUTPUT_DIR_FARM = DATA_ROOT / "highres-renewable-dataset" / "uncalibrated" / "per-farm-production"
 FIGURES_DIR     = DATA_ROOT / "figures"

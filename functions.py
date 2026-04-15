@@ -139,36 +139,29 @@ def interpolate_idw(xrds, lat, lon, var, y_idx, x_idx, ref_height_idx, neighbors
     Performs Inverse Distance Weighting (IDW) interpolation for a variable 
     at a specific lat/lon using a window around the nearest grid point.
     """
-    # Define a search window around the nearest point (3x3 covers the 4 closest in a regular grid)
     y_min = max(0, y_idx - 1)
     y_max = min(len(xrds['y']), y_idx + 2)
     x_min = max(0, x_idx - 1)
     x_max = min(len(xrds['x']), x_idx + 2)
 
-    # Extract coordinates of the window
     sub_lats = xrds['latitude'].isel(y=slice(y_min, y_max), x=slice(x_min, x_max)).values
     sub_lons = xrds['longitude'].isel(y=slice(y_min, y_max), x=slice(x_min, x_max)).values
 
-    # Calculate squared distances
     dists_sq = (sub_lats - lat)**2 + (sub_lons - lon)**2
     flat_dists = dists_sq.flatten()
 
-    # Find k nearest neighbors
     k = min(neighbors, len(flat_dists))
     idx_nearest = np.argsort(flat_dists)[:k]
     
-    # Calculate weights
     dists_nearest = flat_dists[idx_nearest]
-    weights = 1 / (dists_nearest + 1e-8) # Avoid division by zero
+    weights = 1 / (dists_nearest + 1e-8) 
     weights /= weights.sum()
 
-    # Interpolate
     interpolated_series = 0
     window_shape = sub_lats.shape
     
     for i, flat_idx in enumerate(idx_nearest):
         wy, wx = np.unravel_index(flat_idx, window_shape)
-        # Map back to global indices
         gy = y_min + wy
         gx = x_min + wx
         if ref_height_idx is not None:
@@ -195,7 +188,6 @@ def estimate_wind_power(country, lat, lon, capacity, startyear, prod_year, statu
         hub_height = mapped_hub_height if mapped_hub_height else specs['hub_height']
         rated_power_kw = specs['rated_power']
 
-        #find the index of the height level closest to the hub_height
         available_heights = xrds['heightAboveGround'].values
 
         alpha_fixed = 1/7 if (installation_type == 'offshore' or installation_type == 'unknown') else 0.22
@@ -226,7 +218,6 @@ def estimate_wind_power(country, lat, lon, capacity, startyear, prod_year, statu
                 w_lower = xrds['ws'].isel(heightAboveGround=lower_idx, y=y_idx, x=x_idx).values
                 w_upper = xrds['ws'].isel(heightAboveGround=upper_idx, y=y_idx, x=x_idx).values
 
-            #locally fitted shear exponent from bracketing levels (hourly, vectorised)
             with np.errstate(divide='ignore', invalid='ignore'):
                 speed_ratio = np.where(w_lower > 0, w_upper / w_lower, 1.0)
                 alpha_local = np.log(np.clip(speed_ratio, 1e-6, None)) / np.log(z_upper / z_lower)
