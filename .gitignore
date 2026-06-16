@@ -1,19 +1,43 @@
-# Data
+#data
 data/raw/
 data/processed/
 *.nc
 *.grib
 *.csv
 
-# HPC artifacts
+#HPC artifacts
 slurm-*.out
 slurm-*.err
 *.log
 
-# Python
+#python
 __pycache__/
 .ipynb_checkpoints/
 
-# Environments
+#environments
 .env
 .venv
+
+#scripts
+scripts/add_electricity.py
+scripts/build_cerfres_profiles.py
+scripts/build_nve_offshore_timeseries.py
+scripts/build_nve_onshore_timeseries.py
+scripts/build_solbrekke_offshore_timeseries.py
+scripts/fetch_dk_validation.py
+scripts/generate_fig08_alt.py
+scripts/generate_figs08_09.py
+scripts/generate_monthly_cf_validation.py
+scripts/turblib.py
+scripts/custom_latex_style.mplstyle
+
+#artifacts
+Copernicus_LaTeX_Package
+notebooks
+app
+.claude
+.vscode
+paper.tex
+summary.tex
+get_turbine.py
+

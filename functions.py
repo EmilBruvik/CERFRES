@@ -107,13 +107,14 @@ def generate_farm_power_curve(turb_name, n_turbines):
     """
     turbs = Turbines()
     specs = turbs.specs(turb_name)
+    group = specs.get('group', 'onshore').lower()
 
     min_ws = 0.0
     max_ws = 40.0
     ws_step = 0.25
     farm_wind_speeds = np.arange(min_ws, max_ws + ws_step, ws_step)
     farm_power = np.zeros_like(farm_wind_speeds)
-    power_curve = turbs.table(turb_name)
+    power_curve = turbs.table(turb_name, group=group)
 
     single_turbine_ws = power_curve['wind_speed_ms']
     single_turbine_power = power_curve['power_kw']
@@ -174,16 +175,23 @@ def interpolate_idw(xrds, lat, lon, var, y_idx, x_idx, ref_height_idx, neighbors
 def estimate_wind_power(country, lat, lon, capacity, startyear, prod_year, status, installation_type, xrds, 
                         y_idx, x_idx, wts_smoothing=False, power_smoothing=True, 
                         spatial_interpolation=False, wake_loss_factor=None, 
-                        single_turb_curve = False, enforce_start_year=False, verbose=True): 
+                        single_turb_curve=False, enforce_start_year=False, verbose=True,
+                        turbine_model_overwrite=None, hub_height_overwrite=None,
+                        ignore_status_check=False): 
     
-    if status not in operating_farms(country, "wind"):
+    if not ignore_status_check and status not in operating_farms(country, "wind"):
         return None
     if enforce_start_year and (isinstance(startyear, (int, float)) and startyear > prod_year):
         return None
     
     try:
         turbs = Turbines()
-        turbine_model, mapped_hub_height = map_turbine_model(startyear, installation_type)
+        if turbine_model_overwrite is not None:
+            turbine_model = turbine_model_overwrite
+            mapped_hub_height = hub_height_overwrite
+        else:
+            turbine_model, mapped_hub_height = map_turbine_model(startyear, installation_type)
+            
         specs = turbs.specs(turbine_model)
         hub_height = mapped_hub_height if mapped_hub_height else specs['hub_height']
         rated_power_kw = specs['rated_power']
@@ -232,7 +240,8 @@ def estimate_wind_power(country, lat, lon, capacity, startyear, prod_year, statu
         num_turbines = capacity / (rated_power_kw / 1000)
 
         if single_turb_curve:
-            power_curve = turbs.table(turbine_model)
+            group = specs.get('group', 'onshore').lower()
+            power_curve = turbs.table(turbine_model, group=group)
             single_turbine_kw = np.interp(
                 wind_ts, 
                 power_curve['wind_speed_ms'], 

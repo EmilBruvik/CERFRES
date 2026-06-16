@@ -1,12 +1,6 @@
 # CERFRES — High-Resolution European Renewable Energy Generation Dataset
 
-This repository contains the code used to produce CERFRES: a high-resolution, hourly dataset of Solar PV, Onshore Wind, and Offshore Wind power generation across Europe. The model maps individual power plant locations from the Global Energy Monitor asset trackers to a high-resolution weather grid, computes physical power output from local weather conditions, and calibrates the result against historical ENTSO-E generation data.
-
-## Citation
-
-If you use this dataset or code in your research, please cite:
-
-> [Paper under review — citation will be updated upon publication]
+CERFRES is a framework for simulating high-resolution, hourly timeseries of Solar PV, Onshore Wind, and Offshore Wind power generation across Europe. The model maps individual power plant locations to a high-resolution weather grid, calculates physical power output from local weather conditions, and calibrates the result against historical generation data.
 
 ## Installation
 
@@ -18,11 +12,11 @@ Python 3.10 or later is recommended. Install all dependencies with:
 pip install -r requirements.txt
 ```
 
-Key packages: `numpy`, `pandas`, `xarray`, `scipy`, `pvlib`, `turbine_models`, `rasterio`, `h5netcdf`, `joblib`, `tqdm`.
+Packages: `numpy`, `pandas`, `xarray`, `scipy`, `pvlib`, `turbine_models`, `rasterio`, `h5netcdf`, `joblib`, `tqdm`.
 
 ## Data Requirements
 
-The scripts rely on three external datasets that must be downloaded separately. All paths are configured in `config.py` (see [Configuration](#configuration) below).
+The scripts use three external datasets that must be downloaded separately. All paths are configured in `config.py` (see [Configuration](#configuration) below).
 
 | Dataset | Description | Download |
 |---------|-------------|----------|
@@ -96,8 +90,7 @@ CERFRES/
 ├── functions.py                           # Shared utility functions (turbine mapping, wind/PV physics)
 ├── requirements.txt                       # Python dependencies
 ├── scripts/
-│   ├── weather_energy_monthly.py          # Main script — runs the model for one month
-│   ├── wind_turbine_type_histogram.py     # Analysis: histogram of mapped turbine model types
+│   ├── weather_energy_monthly.py          # Main script — runs the model for one month     
 │   └── validate_offshore_wind_output.py   # Validates offshore wind output files
 ├── notebooks/
 │   ├── complementarity_analysis.ipynb     # Analysis of wind/solar complementarity across Europe
