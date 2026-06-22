@@ -28,6 +28,8 @@ scripts/fetch_dk_validation.py
 scripts/generate_fig08_alt.py
 scripts/generate_figs08_09.py
 scripts/generate_monthly_cf_validation.py
+scripts/validate_offshore_wind_output.py
+scripts/wind_turbine_type_histogram.py
 scripts/turblib.py
 scripts/custom_latex_style.mplstyle
 
