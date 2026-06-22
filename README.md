@@ -1,4 +1,4 @@
-# CERFRES — High-Resolution European Renewable Energy Generation Dataset
+# CERFRES — physics-based modeling framework for farm-level renewable energy generation in Europe
 
 CERFRES is a framework for simulating high-resolution, hourly timeseries of Solar PV, Onshore Wind, and Offshore Wind power generation across Europe. The model maps individual power plant locations to a high-resolution weather grid, calculates physical power output from local weather conditions, and calibrates the result against historical generation data.
 
