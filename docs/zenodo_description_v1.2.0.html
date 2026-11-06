@@ -1,0 +1,101 @@
+<p>CERFRES (CERRA-derived Farm-level Renewable Energy Systems generation for Europe) is a high-resolution, open-access dataset of weather-driven wind and solar photovoltaic (PV) power generation across Europe. The dataset provides hourly generation time series for the period 1995&ndash;2025 at multiple spatial scales, including reanalysis grid cells (5.5 &times; 5.5 km), bidding zones, and national aggregates.</p>
+<p>The dataset is constructed by combining geospatial generator metadata with high-resolution meteorological input from the Copernicus European Regional ReAnalysis (CERRA). Wind and PV generation are simulated using physically based power-conversion models. Individual installations are mapped to the underlying meteorological grid based on geographic coordinates. The code used to produce this dataset is available at <a href="https://github.com/EmilBruvik/CERFRES">https://github.com/EmilBruvik/CERFRES</a>.</p>
+<p>Two scenarios are provided:</p>
+<ul>
+<li><strong>As-built scenario:</strong> Reconstructed historical fleet based on commissioning-year metadata, representing the gradual deployment of renewable capacity over time.</li>
+<li><strong>Fixed reference scenario:</strong> Applies the full 2025 installed fleet across the entire historical period to enable consistent long-term variability analysis.</li>
+</ul>
+<h3><strong>Changes in version 1.2.0</strong></h3>
+<ul>
+<li><code>pv_power_mw_distributed</code> now describes the fixed 2025 fleet in every year. Earlier versions mixed the as-built and 2025 fleets, so this variable grew over time. Use version 1.2.0 for this variable.</li>
+<li>Historical fallback factors are recomputed from observed factors only, and no longer depend on the order in which months were simulated. UK wind factors after May 2021 fall from 0.54&ndash;1.25 to 0.45&ndash;0.53.</li>
+<li>Factor files gain <code>PV_Status</code> and <code>Wind_Status</code>, and a QA table is added.</li>
+<li>All other grid variables and all country series keep the values of version 1.1.</li>
+</ul>
+<p>The full list is in <a href="https://github.com/EmilBruvik/CERFRES/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+<h3><strong>Structure</strong></h3>
+<p>There is one ZIP archive per year, named <code>CERFRES_Europe_hourly_{year}_v1.2.0.zip</code>, containing:</p>
+<ul>
+<li><strong><code>{year}_country_aggregated_uncalibrated.nc</code></strong></li>
+<li><strong><code>{year}_per_farm_uncalibrated.nc</code></strong></li>
+<li><strong><code>{year}_correction_factors_uncalibrated.csv</code></strong></li>
+</ul>
+<p>The record also holds <code>validation.zip</code> and <code>CERFRES_v1.2.0_factor_qa.zip</code>.</p>
+<h3><strong>Country-aggregated production</strong></h3>
+<p>Hourly time series of wind and PV generation aggregated at country and bidding-zone level. All series are <strong>uncalibrated</strong>: no correction factor has been applied to them.</p>
+<p><strong>Dimensions</strong></p>
+<ul>
+<li><code>time</code>: hourly timestamps for a full year</li>
+<li><code>area</code> (47): countries and bidding zones</li>
+</ul>
+<p><strong>Coordinates</strong></p>
+<ul>
+<li><code>time</code>: hourly timestamps (UTC)</li>
+<li><code>area</code>: area names (e.g., &ldquo;Germany (DE)&rdquo;, &ldquo;DK1&rdquo;, &ldquo;NO2&rdquo;)</li>
+</ul>
+<p><strong>Variables</strong></p>
+<ul>
+<li><code>pv_power_mw (time, area)</code><br>Hourly PV generation for the <strong>as-built scenario</strong>, including distributed PV</li>
+<li><code>pv_power_mw_2025 (time, area)</code><br>Hourly PV generation for the <strong>fixed 2025 fleet scenario</strong>, including distributed PV</li>
+<li><code>wind_power_mw (time, area)</code><br>Hourly wind generation for the <strong>as-built scenario</strong></li>
+<li><code>wind_power_mw_2025 (time, area)</code><br>Hourly wind generation for the <strong>fixed 2025 fleet scenario</strong></li>
+</ul>
+<h3><strong>Grid-level production</strong></h3>
+<p>Spatially explicit generation on the underlying CERRA grid. All variables describe the <strong>fixed 2025 fleet</strong> in every year.</p>
+<p><strong>Dimensions</strong></p>
+<ul>
+<li><code>time</code>: hourly timestamps</li>
+<li><code>y</code>, <code>x</code> (1069 &times; 1069): spatial grid indices</li>
+</ul>
+<p><strong>Coordinates</strong></p>
+<ul>
+<li><code>latitude (y, x)</code></li>
+<li><code>longitude (y, x)</code></li>
+</ul>
+<p><strong>Variables</strong></p>
+<ul>
+<li><code>wind_power_mw_onshore (time, y, x)</code><br>Onshore wind generation per grid cell</li>
+<li><code>wind_power_mw_offshore (time, y, x)</code><br>Offshore wind generation per grid cell</li>
+<li><code>pv_power_mw (time, y, x)</code><br>Geo-located PV farms</li>
+<li><code>pv_power_mw_distributed (time, y, x)</code><br>Distributed PV generation (rooftop and small-scale systems)</li>
+</ul>
+<p>For each area and hour, <code>pv_power_mw</code> plus <code>pv_power_mw_distributed</code> adds up to <code>pv_power_mw_2025</code>. Zones in Denmark and Sweden share their country's population weights, so a zone's distributed output is spread over the whole country.</p>
+<h3><strong>Correction factors</strong></h3>
+<p>CSV files with monthly multiplicative factors for each area and technology. Months are joined in order, with 47 rows per month.</p>
+<ul>
+<li><code>Area</code>: country or bidding zone</li>
+<li><code>PV_Factor</code>, <code>Wind_Factor</code>: multiplicative factors</li>
+<li><code>PV_Status</code>, <code>Wind_Status</code>: the meaning of each value</li>
+</ul>
+<p><strong>Status values</strong></p>
+<ul>
+<li><code>observed</code>: calculated from ENTSO-E generation and the as-built series.</li>
+<li><code>historical_fallback</code>: no usable ENTSO-E data for this month. The value is the recency-weighted mean of the area's observed factors for the same calendar month.</li>
+<li><code>no_observation</code>: ENTSO-E has too little data, and for fallback months no observed factor exists. The value is the placeholder 1.0, which does not mean &ldquo;no bias&rdquo;.</li>
+<li><code>no_modelled_fleet</code>: the modelled as-built fleet is empty. The value is the placeholder 0.0 or 1.0 and should not be applied, because 0.0 gives zero generation.</li>
+<li><code>invalid_observation</code>: ENTSO-E data exist but do not describe the area's generation. This applies to PV in the Netherlands (October 2018&ndash;2025), Switzerland (2015&ndash;2019) and Austria (2019&ndash;2023). Do not use these values.</li>
+</ul>
+<p>All areas use observations from January 2015 to December 2025, except the United Kingdom. ENTSO-E has no complete per-type UK generation after May 2021, so UK factors from June 2021 are fallback values built from January 2015 to May 2021.</p>
+<p><strong>Using the factors</strong></p>
+<ul>
+<li>Factors are calibrated on the as-built fleet and do not transfer to the <code>_2025</code> fleet.</li>
+<li>Factors absorb capacity gaps as well as bias, so a factor near 1 does not mean the output per MW is right.</li>
+<li>Uncalibrated series divided by capacity are not observed capacity factors. For wind in 2024, modelled output over modelled capacity is 43&nbsp;% in Germany and 59&nbsp;% in the Netherlands, against 23&nbsp;% and 22&nbsp;% for ENTSO-E generation over ENTSO-E capacity.</li>
+<li>The wind model sets <code>wake_loss_factor=1.0</code>, so no wake loss is applied through that factor.</li>
+</ul>
+<h3><strong>Known issues</strong></h3>
+<ul>
+<li><strong>Factors and series come from different runs.</strong> Observed factors are kept identical to version 1.1 and predate the series. Multiplying a series by its factor therefore overshoots ENTSO-E energy for PV by a median of 3.95 times in Switzerland, 2.45 in Finland, 1.80 in Italy, 1.47 in the UK, 1.34 in Greece, 1.18 in France, 1.17 in Portugal, 1.15 in Germany, 1.11 in Denmark and 1.07 in Austria, and for NO1 wind by 1.07. The QA column <code>published_over_series_factor</code> holds the ratio for each area and year.</li>
+<li><strong>Wind time axis.</strong> CERRA wind <code>valid_time</code> is 2 hours after the file's <code>time</code> coordinate, and wind series correlate best with ENTSO-E when shifted later by 1&ndash;2 hours. PV is not affected.</li>
+<li><strong>Missing distributed PV.</strong> 21 modelled countries have no row in the Global Energy Monitor distributed tracker, including Belgium, Ireland, Norway and Romania. Their distributed output is zero and their factors absorb the gap.</li>
+<li><strong>Luxembourg and Kosovo PV metadata.</strong> Their time series cannot be reproduced correctly from the tracker. All 45 Luxembourg farms have no start year, so the as-built series is zero. All three operating Kosovo farms (16.9 MW) are also listed under Serbia, so they are counted in both countries and twice in the grid.</li>
+<li><strong>Cell sums per country.</strong> Border cells also hold a neighbour's output, so a sum over one country's cells can exceed its series (24 % at most in Luxembourg). Use the country series for national totals.</li>
+</ul>
+<h3><strong>Validation</strong></h3>
+<p><code>validation.zip</code> contains the third-party data extracts used to produce the validation results reported in the paper (CERFRES vs. ENTSO-E, NVE, and Energinet observations). These are static snapshots of continuously updated source platforms.</p>
+<ul>
+<li><code>ENTSO-E/</code>: ENTSO-E Transparency Platform generation-by-type exports (2014&ndash;2025)</li>
+<li><code>NVE/</code>: hourly wind production per Norwegian onshore farm (2002&ndash;2025)</li>
+<li><code>EnergiDataService_DK/</code>: hourly solar and wind generation per Danish region (2021&ndash;2025)</li>
+<li><code>GEM/</code>: 3 CSVs, February 2026 release &ndash; Global Wind Power Tracker (1&ndash;10 MW and 10 MW+ wind farms) and Global Solar Power Tracker (distributed installations only).</li>
+</ul>

@@ -8,12 +8,12 @@ import ast
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent / "scripts" / "weather_energy_monthly.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "weather_energy_monthly.py"
 
 
 def test_syntax():
     """Test that the script has valid Python syntax."""
-    with open(SCRIPT) as f:
+    with open(SCRIPT, encoding="utf-8") as f:
         code = f.read()
     try:
         ast.parse(code)
@@ -26,7 +26,7 @@ def test_syntax():
 
 def test_core_features():
     """Test that key implementation patterns are present."""
-    with open(SCRIPT) as f:
+    with open(SCRIPT, encoding="utf-8") as f:
         code = f.read()
 
     ok = True
@@ -64,7 +64,7 @@ def test_core_features():
 
 def test_safe_start_year_handling():
     """Test that start_year is handled safely (no unsafe NaN casting)."""
-    with open(SCRIPT) as f:
+    with open(SCRIPT, encoding="utf-8") as f:
         code = f.read()
 
     ok = True

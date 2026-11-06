@@ -10,3 +10,6 @@ h5netcdf
 netcdf4
 joblib
 tqdm
+h5py
+requests
+pytest

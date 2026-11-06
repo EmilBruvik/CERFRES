@@ -42,6 +42,7 @@ if "functions" in sys.modules:
 
 import functions
 import config
+import factor_history
 
 MONTHS = [
     ("01", "jan"), ("02", "feb"), ("03", "mar"), ("04", "apr"),
@@ -122,6 +123,101 @@ def _installation_bucket(value: object) -> str:
     if "offshore" in txt:
         return "offshore"
     return "onshore"
+
+
+SERIES_NOTE = (
+    "Uncalibrated series: correction factors are not applied to any variable in this file. "
+    "Factors are published separately, are calibrated on the as-built fleet and do not transfer "
+    "to the _2025 fleet."
+)
+DISTRIBUTED_PV_DESCRIPTION = (
+    "Distributed PV power of the fixed 2025 fleet (non-geolocated component). "
+    "pv_power_mw + pv_power_mw_distributed sums to the country-series pv_power_mw_2025."
+)
+
+
+def _filter_to_area(df_country: pd.DataFrame, area_code: str, location_cols: list[str]) -> pd.DataFrame:
+    """Reduce a country's tracker rows to one bidding zone. Other areas pass through."""
+    if area_code not in ZONES:
+        return df_country
+    if area_code.startswith('DK'):
+        lon_vals = pd.to_numeric(df_country['Longitude'], errors='coerce')
+        if area_code == 'DK1':
+            return df_country[lon_vals < 10.9].copy()
+        return df_country[lon_vals >= 10.9].copy()  # DK2
+    zone_cities = functions.get_bidding_zone_mapping(area_code)
+    mask = pd.Series(False, index=df_country.index)
+    for col in location_cols:
+        if col in df_country.columns:
+            mask |= df_country[col].isin(zone_cities)
+    return df_country[mask].copy()
+
+
+def select_pv_fleet(
+    df_main: pd.DataFrame,
+    df_distributed: pd.DataFrame,
+    country: str,
+    area_code: str,
+) -> tuple[pd.DataFrame, float]:
+    """Return an area's geo-located operating PV farms and its distributed capacity scale.
+
+    The country series equal the farm sum times this scale, and the scale depends only on the
+    trackers. A country without a row in the distributed tracker gets a scale of 1.
+    """
+    df_country_all = df_main[df_main["Country/Area"] == country].copy()
+    df_country = _filter_to_area(df_country_all.copy(), area_code, LOCATION_COLS_PV)
+    if len(df_country) == 0:
+        return df_country, 1.0
+
+    op_status = set(functions.operating_farms(country, "solar"))
+    df_country_all = df_country_all[df_country_all["Status"].isin(op_status)].copy()
+    df_country = df_country[df_country["Status"].isin(op_status)].copy()
+
+    df_dist_country = df_distributed[df_distributed["Country/Area"] == country].copy()
+    if "Status" in df_dist_country.columns:
+        df_dist_country = df_dist_country[df_dist_country["Status"].isin(op_status)].copy()
+    distributed_capacity = pd.to_numeric(
+        df_dist_country.get("Capacity (MW)", pd.Series(dtype=float)),
+        errors="coerce",
+    ).fillna(0.0).sum()
+
+    df_country_all["Latitude"] = pd.to_numeric(df_country_all["Latitude"], errors="coerce")
+    df_country_all["Longitude"] = pd.to_numeric(df_country_all["Longitude"], errors="coerce")
+    df_country_all = df_country_all.dropna(subset=["Latitude", "Longitude"])
+
+    df_country["Latitude"] = pd.to_numeric(df_country["Latitude"], errors="coerce")
+    df_country["Longitude"] = pd.to_numeric(df_country["Longitude"], errors="coerce")
+    df_country = df_country.dropna(subset=["Latitude", "Longitude"])
+
+    if len(df_country) == 0:
+        return df_country, 1.0
+
+    capacity_scale = 1.0
+    total_capacity = pd.to_numeric(df_country["Capacity (MW)"], errors="coerce").fillna(0.0).sum()
+    total_capacity_country = pd.to_numeric(df_country_all["Capacity (MW)"], errors="coerce").fillna(0.0).sum()
+
+    distributed_capacity_effective = float(distributed_capacity)
+    if area_code in ZONES and total_capacity_country > 0 and distributed_capacity > 0:
+        distributed_capacity_effective = float(distributed_capacity * (total_capacity / total_capacity_country))
+
+    if total_capacity > 0 and distributed_capacity_effective > 0:
+        capacity_scale = float((total_capacity + distributed_capacity_effective) / total_capacity)
+    elif total_capacity <= 0 and distributed_capacity > 0:
+        print(
+            f"No geo-located PV farms found for {country}, but distributed capacity exists. "
+            "Skipping capacity scaling.",
+            flush=True,
+        )
+    return df_country, capacity_scale
+
+
+def distributed_pv_residual(fleet_total_mw: np.ndarray, farm_total_mw: np.ndarray) -> np.ndarray:
+    """Distributed PV of the fixed 2025 fleet: fleet total minus the geo-located farms.
+
+    Both inputs must describe the same fleet. Using the as-built total here would subtract the
+    2025 farms from an earlier, smaller fleet.
+    """
+    return np.maximum(fleet_total_mw - farm_total_mw, 0.0)
 
 
 @dataclass(frozen=True)
@@ -288,50 +384,10 @@ class PVCalculator:
         fallback_factor: float | None = None,
         force_factor: bool = False,
     ):
-        df_country_all = self.df_main[self.df_main["Country/Area"] == country].copy()
-        df_country = df_country_all.copy()
+        df_country, capacity_scale = select_pv_fleet(self.df_main, self.df_distributed, country, area_code)
 
-        if area_code in ZONES:
-            if area_code.startswith('DK'):
-                lon_vals = pd.to_numeric(df_country['Longitude'], errors='coerce')
-                if area_code == 'DK1':
-                    df_country = df_country[lon_vals < 10.9].copy()
-                else: # DK2
-                    df_country = df_country[lon_vals >= 10.9].copy()
-            else:
-                zone_cities = functions.get_bidding_zone_mapping(area_code)
-                mask = pd.Series(False, index=df_country.index)
-                cols_to_check = LOCATION_COLS_PV if "PV" in str(type(self)) else LOCATION_COLS_WIND
-                for col in cols_to_check:
-                    if col in df_country.columns:
-                        mask |= df_country[col].isin(zone_cities)
-                df_country = df_country[mask].copy()
-        
         T = xrds.sizes["time"]
         empty_ret = (np.zeros(T, dtype=np.float64), np.zeros(T, dtype=np.float64), 0.0)
-        
-        if len(df_country) == 0:
-            return (*empty_ret, pd.DataFrame(), []) if return_farm_data else empty_ret
-
-        op_status = set(functions.operating_farms(country, "solar"))
-        df_country_all = df_country_all[df_country_all["Status"].isin(op_status)].copy()
-        df_country = df_country[df_country["Status"].isin(op_status)].copy()
-
-        df_dist_country = self.df_distributed[self.df_distributed["Country/Area"] == country].copy()
-        if "Status" in df_dist_country.columns:
-            df_dist_country = df_dist_country[df_dist_country["Status"].isin(op_status)].copy()
-        distributed_capacity = pd.to_numeric(
-            df_dist_country.get("Capacity (MW)", pd.Series(dtype=float)),
-            errors="coerce",
-        ).fillna(0.0).sum()
-        
-        df_country_all["Latitude"] = pd.to_numeric(df_country_all["Latitude"], errors="coerce")
-        df_country_all["Longitude"] = pd.to_numeric(df_country_all["Longitude"], errors="coerce")
-        df_country_all = df_country_all.dropna(subset=["Latitude", "Longitude"])
-
-        df_country["Latitude"] = pd.to_numeric(df_country["Latitude"], errors="coerce")
-        df_country["Longitude"] = pd.to_numeric(df_country["Longitude"], errors="coerce")
-        df_country = df_country.dropna(subset=["Latitude", "Longitude"])
 
         if len(df_country) == 0:
             return (*empty_ret, pd.DataFrame(), []) if return_farm_data else empty_ret
@@ -403,23 +459,6 @@ class PVCalculator:
         mw_2025 = watts_2025 / 1_000_000.0
         mw_asbuilt = watts_asbuilt / 1_000_000.0
 
-        capacity_scale = 1.0
-        total_capacity = pd.to_numeric(df_country["Capacity (MW)"], errors="coerce").fillna(0.0).sum()
-        total_capacity_country = pd.to_numeric(df_country_all["Capacity (MW)"], errors="coerce").fillna(0.0).sum()
-
-        distributed_capacity_effective = float(distributed_capacity)
-        if area_code in ZONES and total_capacity_country > 0 and distributed_capacity > 0:
-            distributed_capacity_effective = float(distributed_capacity * (total_capacity / total_capacity_country))
-
-        if total_capacity > 0 and distributed_capacity_effective > 0:
-            capacity_scale = float((total_capacity + distributed_capacity_effective) / total_capacity)
-        elif total_capacity <= 0 and distributed_capacity > 0:
-            print(
-                f"No geo-located PV farms found for {country}, but distributed capacity exists. "
-                "Skipping capacity scaling.",
-                flush=True,
-            )
-        
         mw_asbuilt_agg = mw_asbuilt * capacity_scale
         mw_2025_agg = mw_2025 * capacity_scale
 
@@ -489,21 +528,7 @@ class WindCalculator:
         if len(df_country) == 0:
              return (*empty_ret, pd.DataFrame(), []) if return_farm_data else empty_ret
 
-        if area_code in ZONES:
-            if area_code.startswith('DK'):
-                lon_vals = pd.to_numeric(df_country['Longitude'], errors='coerce')
-                if area_code == 'DK1':
-                    df_country = df_country[lon_vals < 10.9].copy()
-                else: #DK2
-                    df_country = df_country[lon_vals >= 10.9].copy()
-            else:
-                zone_cities = functions.get_bidding_zone_mapping(area_code)
-                mask = pd.Series(False, index=df_country.index)
-                cols_to_check = LOCATION_COLS_PV if "PV" in str(type(self)) else LOCATION_COLS_WIND
-                for col in cols_to_check:
-                    if col in df_country.columns:
-                        mask |= df_country[col].isin(zone_cities)
-                df_country = df_country[mask].copy()
+        df_country = _filter_to_area(df_country, area_code, LOCATION_COLS_WIND)
 
         if len(df_country) == 0:
              return (*empty_ret, pd.DataFrame(), []) if return_farm_data else empty_ret
@@ -552,6 +577,7 @@ class WindCalculator:
                 x_idx=int(x_idx[i]),
                 wts_smoothing=False,
                 power_smoothing=False,
+                # A multiplier on farm power: 1.0 means no wake loss is applied through it.
                 wake_loss_factor=1.0,
                 spatial_interpolation=True,
                 verbose=False,
@@ -591,13 +617,23 @@ class WindCalculator:
 
 
 class MonthlyRunner:
-    def __init__(self, out_dir_aggregated: Path, out_dir_farms: Path, n_jobs_pv: int = 8, history_root: Path | None = None):
+    def __init__(
+        self,
+        out_dir_aggregated: Path,
+        out_dir_farms: Path,
+        out_dir_factors: Path,
+        n_jobs_pv: int = 8,
+        factor_set_dir: Path | None = None,
+    ):
         self.out_dir_aggregated = out_dir_aggregated
         self.out_dir_farms = out_dir_farms
-        self.history_root = history_root if history_root is not None else out_dir_aggregated.parent
-        
+        self.out_dir_factors = out_dir_factors
+        self.factor_set_dir = factor_set_dir
+        self._factor_history: factor_history.FactorHistory | None = None
+
         self.out_dir_aggregated.mkdir(parents=True, exist_ok=True)
         self.out_dir_farms.mkdir(parents=True, exist_ok=True)
+        self.out_dir_factors.mkdir(parents=True, exist_ok=True)
 
         self.tzmap = functions.get_timezone_mapping()
         self.acmap = functions.get_area_code_mapping()
@@ -761,70 +797,34 @@ class MonthlyRunner:
         common = actual.index.intersection(model.index)
         return model.loc[common], actual.loc[common]
     
-    def _weighted_factor_from_history(self, area_code: str, factor_col: str, ms: MonthSpec) -> float | None:
-        target_month = int(ms.month_number)
-        records: list[tuple[pd.Timestamp, float]] = []
-        cf_root = self.history_root
-        if not cf_root.exists():
-            return 1.0
+    def _historical_fallback(self, area_code: str, technology: str, ms: MonthSpec) -> factor_history.FallbackFactor:
+        """Fallback factor from the fixed factor set. Raises if that set is not complete."""
+        if self._factor_history is None:
+            if self.factor_set_dir is None:
+                raise factor_history.IncompleteFactorSetError(
+                    f"{ms.year}-{ms.month_number} needs fallback factors, but no factor set is configured."
+                )
+            self._factor_history = factor_history.FactorHistory.from_directory(self.factor_set_dir, countries_codes)
+        return self._factor_history.fallback(area_code, technology, int(ms.month_number))
 
-        files_found = list(sorted(cf_root.glob("**/correction_factors/*_pv_wind_country_factors.csv")))
-        
-        for f in files_found:
-            parts = f.stem.split("_")
-            if len(parts) < 4:
-                continue
-            try:
-                month = int(parts[0])
-                year = int(parts[1])
-            except ValueError:
-                continue
-
-            if year > 2021 or (year == 2021 and month >= 6):
-                continue
-            
-            if month != target_month:
-                continue
-
-            df = pd.read_csv(f)
-            row = df[df["Area"] == area_code]
-            if row.empty:
-                continue
-
-            col_to_use = factor_col
-            if col_to_use not in row.columns and factor_col == "Wind_Factor" and "Wind_Factor_Multi" in row.columns:
-                col_to_use = "Wind_Factor_Multi"
-            if col_to_use not in row.columns:
-                continue
-
-            val = pd.to_numeric(row[col_to_use], errors="coerce").iloc[0]
-            if not np.isfinite(val):
-                continue
-
-            val_f = float(val)
-
-            if np.isclose(val_f, 1.0) or np.isclose(val_f, 0.0):
-                continue
-
-            records.append((pd.Timestamp(year=year, month=month, day=1), val_f))
-
-        if not records:
-            return 1.0
-
-        if len(records) == 1:
-            return records[0][1]
-
-        records.sort(key=lambda item: item[0])
-        dates = pd.to_datetime([date for date, _ in records])
-        values = np.asarray([value for _, value in records], dtype=np.float64)
-
-        days_from_start = (dates - dates.min()).days.to_numpy(dtype=np.float64)
-        weights = days_from_start + 1.0
-
-        w_sum = float(weights.sum())
-        if w_sum <= 0:
-            return float(values.mean())
-        return float(np.dot(values, weights) / w_sum)
+    def _distributed_cell_weights(
+        self,
+        country: str,
+        df_country: pd.DataFrame,
+        indexer: GridIndexer,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """Population weights for the whole country, or the area's farm capacity if unavailable."""
+        pop_weights = self._country_population_cell_weights(country, indexer)
+        if pop_weights is not None:
+            return pop_weights
+        if country not in self._population_warned_countries:
+            print(
+                f"No population weights found for {country}; "
+                "using farm-capacity fallback for distributed PV grid.",
+                flush=True,
+            )
+            self._population_warned_countries.add(country)
+        return self._farm_capacity_cell_weights(df_country)
 
     def plotting_timeseries(
         self,
@@ -925,22 +925,17 @@ class MonthlyRunner:
         factor_records = [] 
 
         for country, code in zip(countries_tracker, countries_codes):
-            before_2015 = int(ms.year) < 2015
-            uk_after_may_2021 = (
-                country == "United Kingdom"
-                and (
-                    int(ms.year) > 2021
-                    or (int(ms.year) == 2021 and int(ms.month_number) > 5)
-                )
-            )
-
-            force_historical_factor = before_2015 or uk_after_may_2021
+            force_historical_factor = factor_history.requires_fallback(code, int(ms.year), int(ms.month_number))
 
             pv_fallback = None
             wind_fallback = None
+            pv_fallback_status = None
+            wind_fallback_status = None
             if force_historical_factor:
-                pv_fallback = self._weighted_factor_from_history(code, "PV_Factor", ms)
-                wind_fallback = self._weighted_factor_from_history(code, "Wind_Factor", ms)
+                pv_history = self._historical_fallback(code, "PV", ms)
+                wind_history = self._historical_fallback(code, "Wind", ms)
+                pv_fallback, pv_fallback_status = pv_history.value, pv_history.status
+                wind_fallback, wind_fallback_status = wind_history.value, wind_history.status
 
             # --- PV Calculation ---
             pv_ret = self.pv.country_timeseries(
@@ -970,18 +965,9 @@ class MonthlyRunner:
                     pv_farm_only_area += ts_mw
                     global_pv_grid[:, int(y), int(x)] += ts_mw
 
-            pv_distributed_area = np.maximum(pv_as - pv_farm_only_area, 0.0)
+            pv_distributed_area = distributed_pv_residual(pv_25, pv_farm_only_area)
             if np.any(pv_distributed_area > 0):
-                pop_weights = self._country_population_cell_weights(country, pv_indexer)
-                if pop_weights is None:
-                    pop_weights = self._farm_capacity_cell_weights(pv_df_country)
-                    if country not in self._population_warned_countries:
-                        print(
-                            f"No population weights found for {country}; "
-                            "using farm-capacity fallback for distributed PV grid.",
-                            flush=True,
-                        )
-                        self._population_warned_countries.add(country)
+                pop_weights = self._distributed_cell_weights(country, pv_df_country, pv_indexer)
 
                 if pop_weights is not None:
                     y_w, x_w, w = pop_weights
@@ -1023,12 +1009,19 @@ class MonthlyRunner:
             factor_records.append({
                 "Area": code,
                 "PV_Factor": pv_factor,
-                "Wind_Factor": w_factor
+                "Wind_Factor": w_factor,
+                "PV_Status": factor_history.resolve_status(
+                    code, "PV", int(ms.year), int(ms.month_number), pv_factor,
+                    float(np.nansum(pv_as)), pv_fallback_status,
+                ),
+                "Wind_Status": factor_history.resolve_status(
+                    code, "Wind", int(ms.year), int(ms.month_number), w_factor,
+                    float(np.nansum(w_as)), wind_fallback_status,
+                ),
             })
-            
-            alpha_out = self.out_dir_aggregated / f"correction_factors/{ms.month_number}_{ms.year}_pv_wind_country_factors.csv"
-            alpha_out.parent.mkdir(parents=True, exist_ok=True)
-            alpha_dataframe = pd.DataFrame(factor_records, columns=["Area", "PV_Factor", "Wind_Factor"])
+
+            alpha_out = self.out_dir_factors / f"{ms.month_number}_{ms.year}_pv_wind_country_factors.csv"
+            alpha_dataframe = pd.DataFrame(factor_records, columns=factor_history.FACTOR_FILE_COLUMNS)
             alpha_dataframe.to_csv(alpha_out, index=False)
 
             self.plotting_timeseries(
@@ -1064,7 +1057,7 @@ class MonthlyRunner:
                 "year": ms.year,
                 "month_number": ms.month_number,
                 "month_name": ms.month_name,
-                "note": "as-built calibrated factor applied to both as-built and 2025 fleet scenarios per area",
+                "note": SERIES_NOTE,
             },
         )
 
@@ -1092,7 +1085,7 @@ class MonthlyRunner:
         )
         grid_out['wind_power_mw_onshore'].attrs['description'] = 'Onshore wind power only'
         grid_out['wind_power_mw_offshore'].attrs['description'] = 'Offshore wind power only'
-        grid_out['pv_power_mw_distributed'].attrs['description'] = 'Distributed PV power only (non-geolocated component)'
+        grid_out['pv_power_mw_distributed'].attrs['description'] = DISTRIBUTED_PV_DESCRIPTION
         grid_out['pv_power_mw_distributed'].attrs['distribution_method'] = (
             'WorldPop 2026 country GeoTIFF weighting; fallback to farm-capacity weighting if raster missing'
         )
@@ -1123,7 +1116,13 @@ def main():
     
     p.add_argument("--out-dir", default=str(config.OUTPUT_DIR))
     p.add_argument("--out-dir-farm", default=str(config.OUTPUT_DIR_FARM))
-    
+    p.add_argument("--out-dir-factors", default=str(config.FACTOR_OUTPUT_DIR))
+    p.add_argument(
+        "--factor-set",
+        default=str(config.FACTOR_SET_DIR),
+        help="Complete factor set read for fallback months: {factor-set}/{year}/{mm}_{year}_pv_wind_country_factors.csv",
+    )
+
     args = p.parse_args()
 
     month_number = args.month.zfill(2)
@@ -1134,8 +1133,9 @@ def main():
     runner = MonthlyRunner(
         out_dir_aggregated=Path(args.out_dir) / args.year,
         out_dir_farms=Path(args.out_dir_farm) / args.year,
+        out_dir_factors=Path(args.out_dir_factors) / args.year,
         n_jobs_pv=args.n_jobs_pv,
-        history_root=config.OUTPUT_DIR
+        factor_set_dir=Path(args.factor_set),
     )
     runner.run_month(MonthSpec(year=args.year, month_number=month_number, month_name=month_name))
 

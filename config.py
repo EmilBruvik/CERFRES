@@ -26,6 +26,11 @@ ACTUAL_GENERATION_DIR = DATA_ROOT / "Actual_Generation" / "AggregatedGenerationP
 # OUTPUT_DIR      = DATA_ROOT / "highres-renewable-dataset" / "country-aggregated-production"
 # OUTPUT_DIR_FARM = DATA_ROOT / "highres-renewable-dataset" / "per-farm-production"
 # FIGURES_DIR     = DATA_ROOT / "figures"
-OUTPUT_DIR      = DATA_ROOT / "highres-renewable-dataset" / "uncalibrated" / "country-aggregated-production"
-OUTPUT_DIR_FARM = DATA_ROOT / "highres-renewable-dataset" / "uncalibrated" / "per-farm-production"
-FIGURES_DIR     = DATA_ROOT / "figures"
+OUTPUT_ROOT       = DATA_ROOT / "highres-renewable-dataset" / "uncalibrated-v1.2"
+OUTPUT_DIR        = OUTPUT_ROOT / "country-aggregated-production"
+OUTPUT_DIR_FARM   = OUTPUT_ROOT / "per-farm-production"
+FACTOR_OUTPUT_DIR = OUTPUT_ROOT / "correction_factors"
+FIGURES_DIR       = DATA_ROOT / "figures"
+
+#complete factor set read for fallback months (pre-2015, UK after May 2021)
+FACTOR_SET_DIR    = OUTPUT_ROOT / "correction_factors"
