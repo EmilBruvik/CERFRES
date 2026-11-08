@@ -25,16 +25,16 @@ UK = "United Kingdom (UK)"
 YEARS = range(1995, 2026)
 
 pytestmark = pytest.mark.skipif(
-    not (RELEASE / "correction_factors").is_dir() or not (PREVIOUS / "correction_factors").is_dir(),
+    not (RELEASE / "correction_factors").is_dir() or not (PREVIOUS / "country-aggregated-production").is_dir(),
     reason="Release data not available",
 )
 
 
-def load_factors(root: Path) -> pd.DataFrame:
+def load_factors(root: Path, path_of=fh.factor_file_path) -> pd.DataFrame:
     frames = []
     for year in YEARS:
         for month in range(1, 13):
-            frame = pd.read_csv(fh.factor_file_path(root, year, month))
+            frame = pd.read_csv(path_of(root, year, month))
             frames.append(frame.assign(Year=year, Month=month))
     return pd.concat(frames, ignore_index=True)
 
@@ -46,8 +46,9 @@ def factors() -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def merged(factors) -> pd.DataFrame:
-    previous = load_factors(PREVIOUS / "correction_factors")
-    return factors.merge(previous, on=["Area", "Year", "Month"], suffixes=("", "_previous"), validate="one_to_one")
+    """Joined with the source set: the factors written next to the previous country series."""
+    source = load_factors(PREVIOUS / "country-aggregated-production", fh.series_factor_file_path)
+    return factors.merge(source, on=["Area", "Year", "Month"], suffixes=("", "_previous"), validate="one_to_one")
 
 
 def _is_fallback(frame: pd.DataFrame) -> np.ndarray:

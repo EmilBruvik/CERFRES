@@ -170,6 +170,15 @@ def factor_file_path(root: Path, year: int, month: int) -> Path:
     return Path(root) / str(year) / f"{month:02d}_{year}_pv_wind_country_factors.csv"
 
 
+def series_factor_file_path(series_root: Path, year: int, month: int) -> Path:
+    """Factor file written next to the country series by the run that produced them.
+
+    `series_root` is a `country-aggregated-production` folder. Since v1.2.0 these files are
+    the source of the observed factors, because they were calculated from the published series.
+    """
+    return Path(series_root) / str(year) / "correction_factors" / f"{month:02d}_{year}_pv_wind_country_factors.csv"
+
+
 class FactorHistory:
     """Observed factors of one complete factor set."""
 

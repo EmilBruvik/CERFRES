@@ -169,14 +169,13 @@ Observation windows run from January 2015 to December 2025, except for the UK. E
 | Netherlands | 59 % | 22 % |
 
 - **No wake loss through `wake_loss_factor`.** The wind model sets `wake_loss_factor=1.0`, a multiplier on farm power, so no wake loss is applied through that factor.
-- **Factors do not always reproduce the series' energy.** See [Known issues](#known-issues).
+- **Observed factors reproduce ENTSO-E monthly energy.** Multiplying an area's as-built series by an `observed` factor gives ENTSO-E generation for that month. The QA column `published_over_series_factor` compares each factor with one recomputed from the series, and is 1 except for Croatia wind in February 2025 (0.15 %). The v1.1 factors came from an earlier run and do not have this property; see [CHANGELOG.md](CHANGELOG.md).
 - **Check the QA table before using a factor.** `qa/factor_qa_annual.csv` lists factor, modelled energy, ENTSO-E energy and as-built capacity per area, technology and year, with implausible values flagged.
 
 ## Known Issues
 
 Details are in [CHANGELOG.md](CHANGELOG.md).
 
-- **Factor and series come from different runs.** The published observed factors predate the published series. Where the distributed PV inputs of the two runs differ, multiplying a series by its factor does not reproduce ENTSO-E energy. For PV this overshoots by a median of 3.95 times in Switzerland, 2.45 in Finland, 1.80 in Italy, 1.47 in the UK, 1.34 in Greece, 1.18 in France, 1.17 in Portugal, 1.15 in Germany, 1.11 in Denmark and 1.07 in Austria. For NO1 wind it is 1.07. The QA column `published_over_series_factor` holds the ratio for each area and year.
 - **Wind time axis.** CERRA wind `valid_time` is 2 hours after the file's `time` coordinate, and wind series correlate best with ENTSO-E when shifted later by 1–2 hours. PV is not affected.
 - **Missing distributed PV.** 21 modelled countries have no row in the GEM distributed tracker, including Belgium, Ireland, Norway and Romania. Their distributed output is zero and their factors absorb the gap.
 - **Luxembourg and Kosovo PV metadata.** Their time series cannot be reproduced correctly from the tracker. All 45 Luxembourg farms have no start year, so the as-built series is zero. All three operating Kosovo farms (16.9 MW) are also listed under Serbia, so they are counted in both countries and twice in the grid.

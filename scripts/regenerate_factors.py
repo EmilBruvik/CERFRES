@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Rewrite the factor files with status columns and corrected fallback values.
 
-Factors do not enter the published series, so no simulation is needed. Observed rows keep
-their exact values. Fallback rows (all areas before 2015, the UK after May 2021) are recomputed
-from the observed rows of the same factor set.
+Factors do not enter the published series, so no simulation is needed.
+
+- Observed rows keep the exact values of the source set. Since v1.2.0 the source is the set
+  written next to the country series (`country-aggregated-production/{year}/correction_factors`),
+  because it was calculated from the published series. The set published with v1.1 in
+  `correction_factors/` came from an earlier run and does not match the series.
+- Fallback rows (all areas before 2015, the UK after May 2021) are recomputed from the observed
+  rows of the source set.
+- The changes file lists every row whose value differs from the previously published set.
 """
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -20,14 +27,19 @@ import factor_history as fh
 
 YEARS = range(1995, 2026)
 MONTHS = range(1, 13)
+LAYOUTS: dict[str, Callable[[Path, int, int], Path]] = {
+    "release": fh.factor_file_path,
+    "series": fh.series_factor_file_path,
+}
 
 
-def read_published(root: Path) -> pd.DataFrame:
-    """All published factor rows in long form, keeping each file's area order."""
+def read_factor_set(root: Path, layout: str) -> pd.DataFrame:
+    """All factor rows of one set in long form, keeping each file's area order."""
+    path_of = LAYOUTS[layout]
     frames = []
     for year in YEARS:
         for month in MONTHS:
-            frame = pd.read_csv(fh.factor_file_path(root, year, month))
+            frame = pd.read_csv(path_of(root, year, month))
             frame["row"] = np.arange(len(frame))
             for technology, (factor_col, _) in fh.TECHNOLOGY_COLUMNS.items():
                 frames.append(
@@ -96,40 +108,53 @@ def write_factor_files(table: pd.DataFrame, out_root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--published", type=Path, required=True, help="Existing correction_factors folder")
+    parser.add_argument("--source", type=Path, required=True, help="Factor set whose observed values are kept")
+    parser.add_argument("--source-layout", choices=sorted(LAYOUTS), default="series")
+    parser.add_argument("--previous", type=Path, required=True, help="Previously published correction_factors folder")
     parser.add_argument("--scan", type=Path, required=True, help="Output of build_factor_qa.py scan")
     parser.add_argument("--out", type=Path, required=True, help="New correction_factors folder")
-    parser.add_argument("--changes", type=Path, required=True, help="CSV of old and new values of changed rows")
+    parser.add_argument("--changes", type=Path, required=True, help="CSV of rows that differ from the previous set")
     args = parser.parse_args()
 
-    if args.out.resolve() == args.published.resolve():
-        raise ValueError("--out must differ from --published")
+    if args.out.resolve() in (args.source.resolve(), args.previous.resolve()):
+        raise ValueError("--out must differ from --source and --previous")
 
-    published = read_published(args.published)
+    source = read_factor_set(args.source, args.source_layout)
+    previous = read_factor_set(args.previous, "release")
+    keys = ["Area", "Technology", "Year", "Month", "row"]
+    if not source[keys].equals(previous[keys]):
+        raise ValueError("The source and previous sets do not list the same areas in the same order")
+
     scan = pd.read_csv(args.scan)[["Area", "Technology", "Year", "Month", "modelled_asbuilt_mwh", "modelled_2025_mwh"]]
-    table = published.merge(scan, on=["Area", "Technology", "Year", "Month"], how="left", validate="one_to_one")
+    table = source.merge(scan, on=["Area", "Technology", "Year", "Month"], how="left", validate="one_to_one")
     if table["modelled_asbuilt_mwh"].isna().any():
-        raise ValueError("The scan does not cover every published factor row")
+        raise ValueError("The scan does not cover every factor row")
 
     regenerated = recompute_fallback_rows(classify_observed_period(table))
     write_factor_files(regenerated, args.out)
 
-    changes = regenerated.assign(Published=published["Factor"].to_numpy())
-    changes = changes[
-        changes["Is_Fallback"] & ~np.isclose(changes["Factor"], changes["Published"], rtol=1e-12, atol=0.0)
-    ][["Area", "Technology", "Year", "Month", "Published", "Factor", "Status"]].rename(columns={"Factor": "New"})
+    observed = regenerated[~regenerated["Is_Fallback"]]
+    if not np.array_equal(
+        observed["Factor"].to_numpy(dtype=np.float64),
+        source.loc[observed.index, "Factor"].to_numpy(dtype=np.float64),
+    ):
+        raise RuntimeError("A non-fallback factor differs from the source set")
+
+    changes = regenerated.assign(
+        Previous=previous["Factor"].to_numpy(),
+        Source=source["Factor"].to_numpy(),
+        Kind=np.where(regenerated["Is_Fallback"], "fallback", "observed_period"),
+    )
+    changes = changes[~np.isclose(changes["Factor"], changes["Previous"], rtol=1e-12, atol=0.0)]
+    changes = changes[["Area", "Technology", "Year", "Month", "Kind", "Previous", "Factor", "Status"]].rename(
+        columns={"Factor": "New"}
+    )
     args.changes.parent.mkdir(parents=True, exist_ok=True)
     changes.to_csv(args.changes, index=False)
 
-    observed = regenerated[~regenerated["Is_Fallback"]]
-    unchanged = np.array_equal(
-        observed["Factor"].to_numpy(dtype=np.float64),
-        published.loc[observed.index, "Factor"].to_numpy(dtype=np.float64),
-    )
-    if not unchanged:
-        raise RuntimeError("A non-fallback factor changed value")
     print(regenerated.groupby(["Technology", "Status"]).size().to_string())
-    print(f"{len(changes)} fallback rows changed; non-fallback values are unchanged.", flush=True)
+    print(changes.groupby("Kind").size().to_string())
+    print("Non-fallback values equal the source set.", flush=True)
 
 
 if __name__ == "__main__":

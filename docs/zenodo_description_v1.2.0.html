@@ -8,6 +8,7 @@
 <h3><strong>Changes in version 1.2.0</strong></h3>
 <ul>
 <li><code>pv_power_mw_distributed</code> now describes the fixed 2025 fleet in every year. Earlier versions mixed the as-built and 2025 fleets, so this variable grew over time. Use version 1.2.0 for this variable.</li>
+<li>Observed correction factors now come from the same run as the series, so multiplying an as-built series by its observed factor reproduces ENTSO-E monthly energy. The factors published with version 1.1 came from an earlier run; for PV they were higher by a median of 3.95 times in Switzerland, 2.46 in Finland, 1.80 in Italy, 1.47 in the UK and 1.34 in Greece, and by 1.07&ndash;1.18 in France, Portugal, Germany, Denmark and Austria. Other observed factors changed by a few percent.</li>
 <li>Historical fallback factors are recomputed from observed factors only, and no longer depend on the order in which months were simulated. UK wind factors after May 2021 fall from 0.54&ndash;1.25 to 0.45&ndash;0.53.</li>
 <li>Factor files gain <code>PV_Status</code> and <code>Wind_Status</code>, and a QA table is added.</li>
 <li>All other grid variables and all country series keep the values of version 1.1.</li>
@@ -78,14 +79,13 @@
 <p>All areas use observations from January 2015 to December 2025, except the United Kingdom. ENTSO-E has no complete per-type UK generation after May 2021, so UK factors from June 2021 are fallback values built from January 2015 to May 2021.</p>
 <p><strong>Using the factors</strong></p>
 <ul>
-<li>Factors are calibrated on the as-built fleet and do not transfer to the <code>_2025</code> fleet.</li>
+<li>Factors are calibrated on the as-built fleet and do not transfer to the <code>_2025</code> fleet. Multiplying an area's as-built series by an <code>observed</code> factor gives ENTSO-E generation for that month.</li>
 <li>Factors absorb capacity gaps as well as bias, so a factor near 1 does not mean the output per MW is right.</li>
 <li>Uncalibrated series divided by capacity are not observed capacity factors. For wind in 2024, modelled output over modelled capacity is 43&nbsp;% in Germany and 59&nbsp;% in the Netherlands, against 23&nbsp;% and 22&nbsp;% for ENTSO-E generation over ENTSO-E capacity.</li>
 <li>The wind model sets <code>wake_loss_factor=1.0</code>, so no wake loss is applied through that factor.</li>
 </ul>
 <h3><strong>Known issues</strong></h3>
 <ul>
-<li><strong>Factors and series come from different runs.</strong> Observed factors are kept identical to version 1.1 and predate the series. Multiplying a series by its factor therefore overshoots ENTSO-E energy for PV by a median of 3.95 times in Switzerland, 2.45 in Finland, 1.80 in Italy, 1.47 in the UK, 1.34 in Greece, 1.18 in France, 1.17 in Portugal, 1.15 in Germany, 1.11 in Denmark and 1.07 in Austria, and for NO1 wind by 1.07. The QA column <code>published_over_series_factor</code> holds the ratio for each area and year.</li>
 <li><strong>Wind time axis.</strong> CERRA wind <code>valid_time</code> is 2 hours after the file's <code>time</code> coordinate, and wind series correlate best with ENTSO-E when shifted later by 1&ndash;2 hours. PV is not affected.</li>
 <li><strong>Missing distributed PV.</strong> 21 modelled countries have no row in the Global Energy Monitor distributed tracker, including Belgium, Ireland, Norway and Romania. Their distributed output is zero and their factors absorb the gap.</li>
 <li><strong>Luxembourg and Kosovo PV metadata.</strong> Their time series cannot be reproduced correctly from the tracker. All 45 Luxembourg farms have no start year, so the as-built series is zero. All three operating Kosovo farms (16.9 MW) are also listed under Serbia, so they are counted in both countries and twice in the grid.</li>
