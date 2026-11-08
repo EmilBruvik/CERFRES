@@ -60,7 +60,14 @@ def main() -> None:
     parser.add_argument("--keep", nargs="*", default=["validation.zip"])
     parser.add_argument("--draft-id", type=int, default=None, help="Continue an existing draft")
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument(
+        "--create-only",
+        action="store_true",
+        help="Create the draft and remove old files, then stop, so storage can be assigned before uploading",
+    )
     args = parser.parse_args()
+    if args.create_only and args.publish:
+        sys.exit("--create-only and --publish cannot be combined.")
 
     uploads = sorted(path for path in args.files.iterdir() if path.is_file())
     if not uploads:
@@ -80,11 +87,17 @@ def main() -> None:
             check(session.delete(item["links"]["self"]))
             print(f"Removed {name}", flush=True)
 
+    if args.create_only:
+        total = sum(path.stat().st_size for path in uploads)
+        print(f"Draft id {draft['id']}. Files to upload: {len(uploads)}, {total / 1e9:.1f} GB.", flush=True)
+        print(f"Kept from the previous version: {sorted(set(existing) & set(args.keep))}", flush=True)
+        return
+
     bucket = draft["links"]["bucket"]
     for path in uploads:
         md5 = file_md5(path)
         present = existing.get(path.name)
-        if present is not None and present.get("checksum") == md5:
+        if present is not None and str(present.get("checksum", "")).removeprefix("md5:") == md5:
             print(f"Already uploaded: {path.name}", flush=True)
             continue
         with path.open("rb") as fin:
